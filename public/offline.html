@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#c9a027">
+    <title>Sellix POS — Offline</title>
+    <style>
+        body { font-family: Arial, Helvetica, sans-serif; background: #1c252b; color: #fff; margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .box { text-align: center; padding: 24px; max-width: 360px; }
+        h1 { font-size: 22px; margin: 0 0 10px; color: #c9a027; }
+        p { color: #c8d0dc; line-height: 1.45; }
+        button { background: #c9a027; border: 0; color: #111; font-weight: 700; padding: 10px 18px; border-radius: 4px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h1>You are offline</h1>
+        <p>Sellix POS needs a connection to the server. Check your network, then try again.</p>
+        <button type="button" onclick="location.reload()">Retry</button>
+    </div>
+</body>
+</html>

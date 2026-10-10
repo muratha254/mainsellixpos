@@ -1,0 +1,123 @@
+.sx-pwa-install[hidden],
+.sx-pwa-ios-hint[hidden],
+.sx-pwa-update[hidden] {
+    display: none !important;
+}
+
+.sx-pwa-install {
+    white-space: nowrap;
+}
+
+.sx-pwa-ios-hint {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    z-index: 9999;
+    background: #1c252b;
+    color: #fff;
+    border: 1px solid #c9a027;
+    border-radius: 8px;
+    padding: 12px 36px 12px 14px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    font-size: 13px;
+    line-height: 1.35;
+}
+
+.sx-pwa-ios-hint strong {
+    display: block;
+    color: #c9a027;
+    margin-bottom: 2px;
+}
+
+.sx-pwa-ios-close {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    background: transparent;
+    border: 0;
+    color: #c8d0dc;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.sx-pwa-update {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    background: #1c252b;
+    color: #fff;
+    border: 1px solid #c9a027;
+    border-radius: 8px;
+    padding: 12px 14px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.sx-pwa-update-copy strong {
+    display: block;
+    color: #c9a027;
+    font-size: 14px;
+    margin-bottom: 2px;
+}
+
+.sx-pwa-update-copy span {
+    font-size: 13px;
+    color: #d5dde6;
+}
+
+.sx-pwa-update-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.sx-pwa-update-btn,
+.sx-pwa-update-later {
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 7px 12px;
+    cursor: pointer;
+}
+
+.sx-pwa-update-btn {
+    background: #c9a027;
+    border: 0;
+    color: #1c252b;
+}
+
+.sx-pwa-update-later {
+    background: transparent;
+    border: 1px solid #8b96a3;
+    color: #d5dde6;
+}
+
+.login-pwa-install {
+    display: none;
+    margin: 12px 0 0;
+    width: 100%;
+    background: transparent;
+    border: 1px solid #c9a227;
+    color: #c9a227;
+    font-weight: 600;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.login-pwa-install:not([hidden]) {
+    display: inline-block;
+}
+
+.pos-pwa-install {
+    font-size: 12px;
+}
+

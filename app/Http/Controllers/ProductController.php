@@ -815,14 +815,26 @@ class ProductController extends Controller
             return collect();
         }
 
-        return StockMovement::query()
+        $base = StockMovement::query()
             ->withoutGlobalScope('branch')
             ->where('branch_id', $branchId)
-            ->whereIn('product_id', $productIds)
+            ->whereIn('product_id', $productIds);
+
+        $sold = (clone $base)
             ->whereIn('type', [StockMovement::POS_SALE, StockMovement::SALE])
             ->selectRaw('product_id, SUM(quantity_out) as qty')
             ->groupBy('product_id')
             ->pluck('qty', 'product_id');
+
+        $returned = (clone $base)
+            ->whereIn('type', [StockMovement::SALE_RETURN, StockMovement::SALE_VOID])
+            ->selectRaw('product_id, SUM(quantity_in) as qty')
+            ->groupBy('product_id')
+            ->pluck('qty', 'product_id');
+
+        return $sold->map(function ($qty, $productId) use ($returned) {
+            return round(max(0, (float) $qty - (float) ($returned[$productId] ?? 0)), 6);
+        });
     }
 
     private function recordBatch(Product $product, int $branchId, float $qty): void

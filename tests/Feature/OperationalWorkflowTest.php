@@ -247,6 +247,13 @@ class OperationalWorkflowTest extends TestCase
         $this->assertEquals(1, SaleReturn::query()->count());
         $this->assertEquals(99.0, $this->stockQty());
 
+        $this->actingAsAdmin()
+            ->get(route('products.index'))
+            ->assertOk()
+            ->assertSee('data-order="100"', false)
+            ->assertSee('data-order="1"', false)
+            ->assertSee('data-order="99"', false);
+
         $report = app(AccountingLedger::class)->profitAndLoss(now()->toDateString(), now()->toDateString());
         $sales = collect($report['income'])->firstWhere('name', 'Sales');
         $this->assertNotNull($sales);

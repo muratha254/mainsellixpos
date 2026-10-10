@@ -6,8 +6,11 @@ use App\Models\AuditLog;
 use App\Models\CreditNote;
 use App\Models\JournalEntry;
 use App\Models\LoyaltyTransaction;
+use App\Models\LedgerAccount;
 use App\Models\Sale;
+use App\Models\SaleReturn;
 use App\Models\StockTransfer;
+use App\Services\AccountingLedger;
 use App\Services\AccountingPoster;
 use Tests\Support\CreatesSellixWorld;
 use Tests\TestCase;
@@ -210,6 +213,57 @@ class OperationalWorkflowTest extends TestCase
         $this->actingAsCashier()
             ->get(route('accounting.journal'))
             ->assertForbidden();
+    }
+
+    public function test_sale_return_reverses_cogs_sales_and_cash(): void
+    {
+        $unitPrice = (float) $this->product->selling_price;
+        $response = $this->actingAsAdmin()->postJson(route('pos.order'), [
+            'customer_id' => $this->customer->id,
+            'sale_date' => now()->toDateString(),
+            'document_type' => 'pos',
+            'items' => [
+                ['product_id' => $this->product->id, 'quantity' => 2],
+            ],
+            'payment_amount' => round($unitPrice * 2, 2),
+            'payment_method' => 'cash',
+        ]);
+        $response->assertOk();
+
+        $sale = Sale::query()->with('items')->findOrFail($response->json('id'));
+        $item = $sale->items->first();
+
+        $this->actingAsAdmin()->post(route('sales.returns.store', $sale), [
+            'receipt_ref' => $sale->documentNumber(),
+            'want_refund' => '1',
+            'notes' => 'Customer returned one item',
+            'items' => [[
+                'sale_item_id' => $item->id,
+                'quantity' => 1,
+                'condition' => 'yes',
+            ]],
+        ])->assertRedirect(route('sales.returns'));
+
+        $this->assertEquals(1, SaleReturn::query()->count());
+        $this->assertEquals(99.0, $this->stockQty());
+
+        $report = app(AccountingLedger::class)->profitAndLoss(now()->toDateString(), now()->toDateString());
+        $sales = collect($report['income'])->firstWhere('name', 'Sales');
+        $this->assertNotNull($sales);
+        $this->assertEqualsWithDelta(100.0, (float) $sales['amount'], 0.02);
+        $this->assertEqualsWithDelta(50.0, (float) $report['cogs_total'], 0.02);
+        $this->assertEqualsWithDelta(50.0, (float) $report['gross_profit'], 0.02);
+
+        $ledger = app(AccountingLedger::class);
+        $balance = function (string $name) use ($ledger) {
+            $account = LedgerAccount::query()->where('name', $name)->firstOrFail();
+
+            return $ledger->accountBalance($account);
+        };
+        $this->assertEqualsWithDelta(50.0, $balance('Cost Of Goods Sold'), 0.02);
+        $this->assertEqualsWithDelta(100.0, $balance('Sales Revenue'), 0.02);
+        $this->assertEqualsWithDelta(100.0, $balance('Cash'), 0.02);
+        $this->assertEqualsWithDelta(-50.0, $balance('Inventory'), 0.02);
     }
 
     public function test_authorized_admin_can_view_credit_notes_index(): void

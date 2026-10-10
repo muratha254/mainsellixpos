@@ -8,6 +8,7 @@ use App\Models\SaleItem;
 use App\Models\SaleReturn;
 use App\Models\SaleReturnItem;
 use App\Models\StockMovement;
+use App\Services\AccountingPoster;
 use App\Services\DocumentNumberService;
 use App\Services\InventoryService;
 use Illuminate\Http\Request;
@@ -38,7 +39,7 @@ class SaleReturnController extends Controller
         return response()->json($this->returnablePayload($sale));
     }
 
-    public function store(Request $request, Sale $sale, DocumentNumberService $numbers, InventoryService $inventory)
+    public function store(Request $request, Sale $sale, DocumentNumberService $numbers, InventoryService $inventory, AccountingPoster $accounting)
     {
         $this->authorizePermission('sales.return');
         abort_unless($sale->status === Sale::STATUS_COMPLETED, 422, 'Only a completed sale can be returned.');
@@ -53,6 +54,8 @@ class SaleReturnController extends Controller
             'items.*.condition' => 'nullable|in:yes,no',
         ]);
 
+        $sale->loadMissing('items');
+        $saleItems = $sale->items->keyBy('id');
         $payload = $this->returnablePayload($sale);
         $available = collect($payload['items'])->keyBy('sale_item_id');
         $lines = [];
@@ -71,13 +74,17 @@ class SaleReturnController extends Controller
                 return back()->with('error', 'Select Good Condition for each item being returned.');
             }
 
+            $saleItem = $saleItems->get((int) $item['sale_item_id']);
+            $gross = $saleItem
+                ? $this->returnLineGross($sale, $saleItem, $qty)
+                : round($qty * (float) $item['unit_price'], 2);
             $lines[] = [
                 'sale_item_id' => (int) $item['sale_item_id'],
                 'product_id' => $item['product_id'] ? (int) $item['product_id'] : null,
                 'product_variant_id' => (int) $item['product_variant_id'],
                     'quantity' => $qty,
                     'unit_price' => (float) $item['unit_price'],
-                    'line_total' => round($qty * (float) $item['unit_price'], 2),
+                    'line_total' => $gross,
                     'condition' => $row['condition'] === 'yes' ? 'good' : 'damaged',
                     'restore_stock' => $row['condition'] === 'yes',
                     'manage_stock' => (bool) $item['manage_stock'],
@@ -111,7 +118,7 @@ class SaleReturnController extends Controller
         });
 
         try {
-            DB::transaction(function () use ($sale, $data, $lines, $numbers, $inventory, $wantRefund, $refundAmount, $restoreAny) {
+            DB::transaction(function () use ($sale, $data, $lines, $numbers, $inventory, $accounting, $wantRefund, $refundAmount, $restoreAny) {
                 $return = SaleReturn::query()->create([
                     'company_id' => $sale->company_id,
                     'branch_id' => $sale->branch_id,
@@ -188,6 +195,8 @@ class SaleReturnController extends Controller
                 if ($fullyReturned) {
                     $sale->update(['status' => Sale::STATUS_RETURNED]);
                 }
+
+                $accounting->postSaleReturn($return->fresh(['items.saleItem.product', 'sale.payments', 'sale.items']));
             });
         } catch (NegativeStockException $e) {
             return back()->with('error', $e->getMessage());
@@ -241,6 +250,24 @@ class SaleReturnController extends Controller
             'store_url' => route('sales.returns.store', $sale),
             'items' => $items,
         ];
+    }
+
+    private function returnLineGross(Sale $sale, SaleItem $item, float $qty): float
+    {
+        $sold = (float) $item->quantity;
+        $ratio = $sold > 0 ? $qty / $sold : 0;
+        $subtotal = (float) $sale->subtotal;
+        $line = (float) $item->line_total;
+        $discount = (float) $sale->discount_amount;
+        $lineAfterDiscount = $subtotal > 0.0001
+            ? $line - ($discount * ($line / $subtotal))
+            : $line;
+        $gross = round(max(0, $lineAfterDiscount * $ratio), 2);
+        if ($gross <= 0 && (float) $item->unit_price > 0) {
+            $gross = round((float) $item->unit_price * $qty, 2);
+        }
+
+        return $gross;
     }
 
     private function syncPaymentState(Sale $sale): void

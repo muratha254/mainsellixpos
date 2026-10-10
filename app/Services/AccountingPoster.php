@@ -12,6 +12,7 @@ use App\Models\Expense;
 use App\Models\Payment;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseReturn;
+use App\Models\SaleReturn;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -40,9 +41,9 @@ class AccountingPoster
         $this->ensureControlAccounts((int) $sale->company_id);
         $sale->loadMissing(['payments', 'items.product']);
 
-        $revenue = round(max(0, (float) $sale->total - (float) $sale->tax_amount), 2);
-        $tax = round((float) $sale->tax_amount, 2);
-        $total = round((float) $sale->total, 2);
+        $total = $this->saleDocumentTotal($sale);
+        $tax = round(min($total, (float) $sale->tax_amount), 2);
+        $revenue = round(max(0, $total - $tax), 2);
         $paid = $this->salePaidForPosting($sale);
         $balance = round(max(0, $total - $paid), 2);
 
@@ -146,6 +147,78 @@ class AccountingPoster
         }
 
         return $this->reverseEntry($original, $sale, 'sale_void', 'Void sale ' . ($sale->number ?: $sale->id));
+    }
+
+    public function postSaleReturn(SaleReturn $return): ?JournalEntry
+    {
+        if (($return->status ?? 'completed') !== 'completed') {
+            return null;
+        }
+
+        $return->loadMissing(['items.saleItem.product', 'sale.payments', 'sale.items']);
+        $sale = $return->sale;
+        if (! $sale) {
+            return null;
+        }
+
+        $figures = $this->saleReturnFigures($return);
+        $gross = $figures['gross'];
+        $tax = $figures['tax'];
+        $net = $figures['net'];
+        $cogs = $figures['cogs'];
+        if ($gross <= 0 && $cogs <= 0) {
+            return null;
+        }
+
+        $this->ensureControlAccounts((int) $return->company_id);
+        $lines = [];
+
+        if ($gross > 0) {
+            $documentTotal = $this->saleDocumentTotal($sale);
+            $paid = $this->salePaidForPosting($sale);
+            $priorRefunds = round((float) SaleReturn::query()
+                ->where('sale_id', $sale->id)
+                ->where('id', '!=', $return->id)
+                ->sum('refund_amount'), 2);
+            $outstanding = round(max(0, $documentTotal - $paid - $priorRefunds), 2);
+            $arPortion = round(min($gross, $outstanding), 2);
+            $cashPortion = round(max(0, $gross - $arPortion), 2);
+
+            if ($net > 0) {
+                $lines[] = ['account' => $this->accountByName((int) $return->company_id, 'Sales Revenue'), 'debit' => $net, 'credit' => 0, 'description' => 'Sale return revenue'];
+            }
+            if ($tax > 0) {
+                $lines[] = ['account' => $this->accountByName((int) $return->company_id, 'Tax Payable(VAT OUTPUT)'), 'debit' => $tax, 'credit' => 0, 'description' => 'Sale return VAT'];
+            }
+            if ($arPortion > 0) {
+                $lines[] = ['account' => $this->accountByName((int) $return->company_id, 'Accounts Receivable'), 'debit' => 0, 'credit' => $arPortion, 'description' => 'Sale return receivable'];
+            }
+            if ($cashPortion > 0) {
+                foreach ($this->allocateSaleReceipts($sale, $cashPortion) as $receipt) {
+                    $lines[] = [
+                        'account' => $receipt['account'],
+                        'debit' => 0,
+                        'credit' => $receipt['amount'],
+                        'description' => 'Sale return refund',
+                    ];
+                }
+            }
+        }
+
+        if ($cogs > 0) {
+            $lines[] = ['account' => $this->accountByName((int) $return->company_id, 'Inventory'), 'debit' => $cogs, 'credit' => 0, 'description' => 'Sale return stock'];
+            $lines[] = ['account' => $this->accountByName((int) $return->company_id, 'Cost Of Goods Sold'), 'debit' => 0, 'credit' => $cogs, 'description' => 'Sale return COGS'];
+        }
+
+        return $this->postBalanced(
+            (int) $return->company_id,
+            $return->branch_id ? (int) $return->branch_id : ($sale->branch_id ? (int) $sale->branch_id : null),
+            $return,
+            'sale_return',
+            'Sale return ' . ($return->number ?: $return->id),
+            optional($return->return_date)->toDateString() ?: now()->toDateString(),
+            $lines
+        );
     }
 
     public function postCreditNote(CreditNote $note): ?JournalEntry
@@ -518,15 +591,58 @@ class AccountingPoster
         return $this->paymentMethodAccount((int) $sale->company_id, (string) $method);
     }
 
+    private function saleDocumentTotal(Sale $sale): float
+    {
+        $fromLines = round(max(0, (float) $sale->subtotal - (float) $sale->discount_amount), 2);
+
+        return round(max((float) $sale->total, $fromLines), 2);
+    }
+
     private function salePaidForPosting(Sale $sale): float
     {
-        $paid = round((float) $sale->paid_amount, 2);
-        if (in_array($sale->status, [Sale::STATUS_VOIDED], true)) {
-            $fromPayments = round((float) $sale->payments->sum('amount'), 2);
-            $paid = round(min((float) $sale->total, max($paid, $fromPayments)), 2);
+        $sale->loadMissing('payments');
+        $paid = round(max((float) $sale->paid_amount, (float) $sale->payments->sum('amount')), 2);
+
+        return round(min($this->saleDocumentTotal($sale), max(0, $paid)), 2);
+    }
+
+    /**
+     * @return array{gross:float,tax:float,net:float,cogs:float}
+     */
+    private function saleReturnFigures(SaleReturn $return): array
+    {
+        $gross = 0.0;
+        $tax = 0.0;
+        $cogs = 0.0;
+
+        foreach ($return->items as $item) {
+            $saleItem = $item->saleItem;
+            $ratio = ($saleItem && (float) $saleItem->quantity > 0)
+                ? min(1, (float) $item->quantity / (float) $saleItem->quantity)
+                : 0;
+            if ($saleItem && $item->condition === 'good') {
+                $cogs += $saleItem->cogsAmount() * $ratio;
+            }
+            if ($saleItem && $ratio > 0) {
+                $tax += (float) $saleItem->tax_amount * $ratio;
+            }
+            $gross += (float) $item->line_total;
         }
 
-        return max(0, $paid);
+        if ((float) $return->refund_amount <= 0) {
+            $gross = 0.0;
+            $tax = 0.0;
+        } else {
+            $gross = round((float) $return->refund_amount, 2);
+            $tax = round(min($gross, $tax), 2);
+        }
+
+        return [
+            'gross' => round($gross, 2),
+            'tax' => round($tax, 2),
+            'net' => round(max(0, $gross - $tax), 2),
+            'cogs' => round($cogs, 2),
+        ];
     }
 
     /**

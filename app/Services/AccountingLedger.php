@@ -9,6 +9,7 @@ use App\Models\JournalLine;
 use App\Models\LedgerAccount;
 use App\Models\MoneyEntry;
 use App\Models\Sale;
+use App\Models\SaleReturn;
 use App\Models\Supplier;
 use Illuminate\Support\Collection;
 
@@ -359,12 +360,12 @@ class AccountingLedger
         foreach ($income as $row) {
             if (! $replaced && ($row['name'] ?? '') === 'Sales Revenue') {
                 $net = (float) $row['amount'];
-                $gross = $grossDocs > 0.009
+                $gross = abs($grossDocs) > 0.009
                     ? $grossDocs
-                    : round($net + max(0, $vat), 2);
+                    : round($net + $vat, 2);
                 $out[] = ['name' => 'Sales', 'amount' => $gross];
-                if ($vat > 0.009) {
-                    $out[] = ['name' => 'Less: VAT Output', 'amount' => -abs($vat)];
+                if (abs($vat) > 0.009) {
+                    $out[] = ['name' => 'Less: VAT Output', 'amount' => round(-$vat, 2)];
                 }
                 $replaced = true;
                 continue;
@@ -386,28 +387,37 @@ class AccountingLedger
 
         $period = $this->accountPeriod($account, $from, $to);
 
-        return round(max(0, (float) $period['credit'] - (float) $period['debit']), 2);
-    }
-
-    private function salesTotal(string $from, string $to): float
-    {
-        return round((float) Sale::query()
-            ->where('status', Sale::STATUS_COMPLETED)
-            ->whereDate('sale_date', '>=', $from)
-            ->whereDate('sale_date', '<=', $to)
-            ->sum('total'), 2);
+        return round((float) $period['credit'] - (float) $period['debit'], 2);
     }
 
     private function documentSalesNet(string $from, string $to): float
     {
-        $sales = $this->salesTotal($from, $to);
+        $sales = 0.0;
+        $rows = Sale::query()
+            ->whereIn('status', [Sale::STATUS_COMPLETED, Sale::STATUS_RETURNED])
+            ->whereDate('sale_date', '>=', $from)
+            ->whereDate('sale_date', '<=', $to)
+            ->get(['subtotal', 'discount_amount', 'total']);
+        foreach ($rows as $sale) {
+            $original = round(max(0, (float) $sale->subtotal - (float) $sale->discount_amount), 2);
+            if ($original <= 0) {
+                $original = round((float) $sale->total, 2);
+            }
+            $sales += $original;
+        }
+
         $credits = round((float) CreditNote::query()
             ->whereIn('status', [CreditNote::STATUS_POSTED, CreditNote::STATUS_COMPLETED])
             ->whereDate('credit_date', '>=', $from)
             ->whereDate('credit_date', '<=', $to)
             ->sum('total'), 2);
+        $returns = round((float) SaleReturn::query()
+            ->where('status', 'completed')
+            ->whereDate('return_date', '>=', $from)
+            ->whereDate('return_date', '<=', $to)
+            ->sum('refund_amount'), 2);
 
-        return round(max(0, $sales - $credits), 2);
+        return round($sales - $credits - $returns, 2);
     }
 
     private function expenseTotal(string $from, string $to): float

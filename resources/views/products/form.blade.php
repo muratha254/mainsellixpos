@@ -114,10 +114,22 @@
                 </div>
                 <div class="col-md-3">
                     <div class="form-group">
-                        <label>Serial Key Unit (SKU)</label>
-                        <input type="text" name="sku" class="form-control" placeholder="Serial Key Unit(For Scanning)" value="{{ old('sku', $product->sku) }}">
+                        <label>Barcode</label>
+                        <div class="input-group">
+                            <span class="input-group-addon"><i class="fa fa-barcode"></i></span>
+                            <input type="text" name="barcode" id="sx-item-barcode" class="form-control" placeholder="Scan barcode" title="Scan the item. The POS scanner finds it with this code." autocomplete="off" value="{{ old('barcode', $product->barcode) }}">
+                        </div>
                     </div>
                 </div>
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label>SKU</label>
+                        <input type="text" name="sku" class="form-control" placeholder="Item code" value="{{ old('sku', $product->sku) }}">
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
                 <div class="col-md-3">
                     <div class="form-group">
                         <label class="sx-req">Expire Date <span class="sx-format">Format(dd-mm-yyyy)</span></label>
@@ -127,9 +139,6 @@
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <div class="row">
                 <div class="col-md-3">
                     <div class="form-group">
                         <label class="sx-req">Purpose <i class="fa fa-question-circle" title="State if For Sale or Not"></i> <span class="sx-hint">State if For Sale or Not</span></label>
@@ -158,15 +167,6 @@
                             <option value="0" @if($allowNegative == '0') selected @endif>No</option>
                             <option value="1" @if($allowNegative == '1') selected @endif>Yes</option>
                         </select>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="form-group">
-                        <label>Select Image</label>
-                        <input type="file" name="image" class="form-control-file" accept="image/*">
-                        @if($product->image_path)
-                            <label class="sx-remove-image"><input type="checkbox" name="remove_image" value="1"> Remove current image</label>
-                        @endif
                     </div>
                 </div>
             </div>
@@ -241,7 +241,16 @@
                         <p class="help-block" id="sx-opening-preview" style="margin:4px 0 0;">{{ $isEdit ? 'Current remaining at this branch. Change the qty to adjust stock.' : '' }}</p>
                     </div>
                 </div>
-                <div class="col-md-9">
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label>Select Image</label>
+                        <input type="file" name="image" class="form-control-file" accept="image/*">
+                        @if($product->image_path)
+                            <label class="sx-remove-image"><input type="checkbox" name="remove_image" value="1"> Remove current image</label>
+                        @endif
+                    </div>
+                </div>
+                <div class="col-md-6">
                     <div class="form-group">
                         <label>Description</label>
                         <textarea name="description" class="form-control" rows="3" placeholder="Description">{{ old('description', $product->description) }}</textarea>
@@ -404,6 +413,62 @@
 @push('scripts')
 <script>
 (function () {
+    var form = document.querySelector('.sx-item-form');
+    var barcodeInput = document.getElementById('sx-item-barcode');
+    var scan = { buf: '', last: 0, target: null, start: null };
+
+    function isBarcodeField(el) {
+        if (!el) return false;
+        return el.id === 'sx-item-barcode' || (el.name && el.name.indexOf('[barcode]') !== -1);
+    }
+    function markBarcode(el) {
+        if (!el) return;
+        el.classList.add('sx-barcode-ok');
+    }
+    if (form && barcodeInput) {
+        form.addEventListener('keydown', function (e) {
+            if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+                var now = Date.now();
+                if (now - scan.last > 70) {
+                    scan.buf = '';
+                    scan.target = e.target;
+                    var tag = ((e.target && e.target.tagName) || '').toLowerCase();
+                    scan.start = (!isBarcodeField(e.target) && (tag === 'input' || tag === 'textarea')) ? e.target.value : null;
+                }
+                scan.buf += e.key;
+                scan.last = now;
+            }
+            if (e.key !== 'Enter') return;
+            var burst = scan.buf.length >= 4 && (Date.now() - scan.last) <= 70;
+            var code = scan.buf;
+            var target = scan.target;
+            var start = scan.start;
+            scan.buf = '';
+            scan.start = null;
+            if (burst) {
+                e.preventDefault();
+                if (isBarcodeField(target)) {
+                    markBarcode(target);
+                    return;
+                }
+                if (target && start != null) target.value = start;
+                barcodeInput.value = code;
+                markBarcode(barcodeInput);
+                var name = form.querySelector('input[name="name"]');
+                if (name && !name.value.trim()) name.focus();
+                return;
+            }
+            if (isBarcodeField(e.target)) {
+                e.preventDefault();
+                markBarcode(e.target);
+                var nameField = form.querySelector('input[name="name"]');
+                if (e.target.id === 'sx-item-barcode' && nameField && !nameField.value.trim()) {
+                    nameField.focus();
+                }
+            }
+        });
+    }
+
     var purchase = document.getElementById('purchase_price');
     var selling = document.getElementById('selling_price');
     var margin = document.getElementById('profit_margin');

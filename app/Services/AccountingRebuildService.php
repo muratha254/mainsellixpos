@@ -12,6 +12,7 @@ use App\Models\Payment;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseReturn;
 use App\Models\Sale;
+use App\Models\SaleReturn;
 class AccountingRebuildService
 {
     public function __construct(
@@ -48,6 +49,16 @@ class AccountingRebuildService
                 }
             } catch (\Throwable $e) {
                 $errors[] = 'Sale ' . ($sale->number ?: $sale->id) . ': ' . $e->getMessage();
+            }
+        }
+
+        foreach ($this->saleReturns($companyId) as $return) {
+            try {
+                if ($this->poster->postSaleReturn($return)) {
+                    $posted++;
+                }
+            } catch (\Throwable $e) {
+                $errors[] = 'Sale return ' . ($return->number ?: $return->id) . ': ' . $e->getMessage();
             }
         }
 
@@ -119,6 +130,17 @@ class AccountingRebuildService
             ->when($companyId, fn ($q) => $q->where('company_id', $companyId))
             ->whereIn('status', [Sale::STATUS_COMPLETED, Sale::STATUS_VOIDED, Sale::STATUS_RETURNED])
             ->orderBy('sale_date')
+            ->orderBy('id')
+            ->get();
+    }
+
+    private function saleReturns(?int $companyId)
+    {
+        return SaleReturn::query()
+            ->with(['items.saleItem.product', 'sale.payments', 'sale.items'])
+            ->when($companyId, fn ($q) => $q->where('company_id', $companyId))
+            ->where('status', 'completed')
+            ->orderBy('return_date')
             ->orderBy('id')
             ->get();
     }

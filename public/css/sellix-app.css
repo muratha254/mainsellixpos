@@ -816,6 +816,17 @@ body.sellix-app {
     font-weight: 600;
 }
 
+.sx-item-form .sx-barcode-hint {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: #666;
+}
+
+.sx-item-form .sx-barcode-ok {
+    border-color: #00a65a;
+    box-shadow: inset 0 0 0 1px #00a65a;
+}
+
 .sx-item-form textarea.form-control {
     min-height: 74px;
     resize: vertical;
@@ -2609,11 +2620,187 @@ body.pos-body {
 }
 
 .pos-right {
-    padding: 22px 18px 16px 28px;
+    padding: 0;
     background: #fff;
     display: flex;
     flex-direction: column;
     min-width: 0;
+    overflow: hidden;
+}
+
+.pos-pay-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    background: #fff;
+    padding: 0;
+}
+
+.pos-pay-sheet {
+    width: 100%;
+    padding: 14px 18px 12px;
+    overflow: hidden;
+}
+
+.pos-pay-label {
+    display: block;
+    margin: 12px 0 6px;
+    color: #666;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .2px;
+}
+
+.pos-pay-sheet > .pos-pay-label:first-child {
+    margin-top: 0;
+}
+
+.pos-pay-methods {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.pos-pay-method {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 68px;
+    border: 1px solid #d2d6de;
+    border-radius: 2px;
+    background: #faf8f5;
+    color: #555;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.pos-pay-method .fa {
+    font-size: 18px;
+    color: #c9a027;
+}
+
+.pos-pay-method.is-active {
+    border-color: #c9a027;
+    background: #fbf6ea;
+    color: #8a6d12;
+    box-shadow: inset 0 0 0 1px #c9a027;
+}
+
+.pos-pay-amount-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 36px;
+    padding: 0 10px;
+    border: 1px solid #d2d6de;
+    border-radius: 0;
+    background: #fff;
+}
+
+.pos-pay-amount-box span {
+    color: #c9a027;
+    font-weight: 700;
+}
+
+.pos-pay-amount-box input {
+    flex: 1;
+    border: 0;
+    outline: none;
+    box-shadow: none;
+    font-size: 15px;
+    font-weight: 700;
+    color: #222;
+    background: transparent;
+    height: 34px;
+}
+
+.pos-pay-sheet textarea {
+    width: 100%;
+    min-height: 52px;
+    padding: 8px 10px;
+    border: 1px solid #d2d6de;
+    border-radius: 0;
+    resize: none;
+    box-shadow: none;
+    font-size: 14px;
+    color: #333;
+}
+
+.pos-pay-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 10px;
+    color: #444;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.pos-pay-line strong {
+    font-weight: 700;
+    color: #222;
+}
+
+.pos-pay-line .is-green {
+    color: #f39c12;
+}
+
+.pos-pay-total {
+    margin-top: 12px;
+    margin-bottom: 4px;
+    padding-top: 8px;
+    border-top: 1px solid #eee;
+}
+
+.pos-pay-total span {
+    font-size: 15px;
+    font-weight: 700;
+    color: #333;
+    text-transform: uppercase;
+}
+
+.pos-pay-total strong {
+    font-size: 26px;
+    font-weight: 700;
+    color: #c9a027;
+    letter-spacing: 0;
+}
+
+.pos-pay-panel .pos-pay-credit-note {
+    margin: 8px 0 0;
+}
+
+.pos-pay-panel .pos-pay-complete {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    min-width: 0;
+    height: 44px;
+    margin-top: 12px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 2px;
+    background: #00a65a;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.pos-pay-panel .pos-pay-complete:hover,
+.pos-pay-panel .pos-pay-complete:focus {
+    background: #008d4c;
+    color: #fff;
+}
+
+.pos-pay-panel .pos-pay-complete span {
+    flex: 1;
+    text-align: center;
 }
 
 .pos-filters {
@@ -2693,6 +2880,17 @@ body.pos-body {
 }
 
 .pos-search-item:hover { background: #f7f3e6; }
+
+.pos-search-empty {
+    padding: 8px 10px;
+    color: #a94442;
+    font-weight: 700;
+}
+
+.pos-search-wrap.is-scan .form-control {
+    border-color: #c9a027;
+    box-shadow: inset 0 0 0 1px #c9a027;
+}
 
 .pos-cart-wrap {
     flex: 1;

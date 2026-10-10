@@ -38,7 +38,7 @@
             </div>
             <div class="pos-search-wrap">
                 <span class="pos-search-icon"><i class="fa fa-th"></i></span>
-                <input type="text" id="sx-pos-search" class="form-control" placeholder="Item name/Barcode/Itemcode (F10)" autocomplete="off">
+                <input type="text" id="sx-pos-search" class="form-control" placeholder="Scan barcode or type item name (F10)" autocomplete="off">
                 <div id="sx-pos-results" class="pos-search-results" hidden></div>
             </div>
         </div>
@@ -95,7 +95,6 @@
             </div>
 
             <div class="pos-actions">
-                <button type="button" class="btn pos-btn-order" id="sx-pos-order"><i class="fa fa-check"></i> ORDER</button>
                 <button type="button" class="btn pos-btn-hold" id="sx-pos-hold"><i class="fa fa-hand-stop-o"></i> HOLD (F4)</button>
                 <button type="button" class="btn pos-btn-cust" id="sx-pos-cust"><i class="fa fa-user"></i> CUST (F7)</button>
             </div>
@@ -108,18 +107,64 @@
     </div>
 
     <div class="pos-right">
-        <div class="pos-cats" id="sx-pos-cats"></div>
-        <div class="pos-grid-wrap">
-            <div class="pos-grid" id="sx-pos-grid"></div>
-            <div class="pos-nav" id="sx-pos-nav">
-                <button type="button" class="pos-nav-btn" id="sx-pos-prev" title="Previous page" aria-label="Previous page"><i class="fa fa-arrow-left"></i></button>
-                <button type="button" class="pos-nav-btn" id="sx-pos-next" title="Next page" aria-label="Next page"><i class="fa fa-arrow-right"></i></button>
-                <button type="button" class="pos-nav-btn" id="sx-pos-ok" title="Reload items" aria-label="Reload items"><i class="fa fa-thumbs-up"></i></button>
-                <button type="button" class="pos-nav-btn" id="sx-pos-cust-nav" title="Add customer" aria-label="Add customer"><i class="fa fa-user"></i></button>
-                <div class="pos-page-indicator" id="sx-pos-page" aria-live="polite">1 / 1</div>
-                <button type="button" class="pos-nav-btn pos-nav-refresh" id="sx-pos-refresh" title="Refresh catalog" aria-label="Refresh catalog"><i class="fa fa-refresh"></i></button>
+        <form id="sx-pos-pay-form" class="pos-pay-panel">
+            <div class="pos-pay-head">
+                <i class="fa fa-money"></i> RECEIVE PAYMENT
             </div>
-        </div>
+            <div class="pos-pay-sheet">
+                <div class="pos-pay-label">Payment method</div>
+                <div class="pos-pay-methods" role="group" aria-label="Payment method">
+                    <button type="button" class="pos-pay-method is-active" data-method="cash">
+                        <i class="fa fa-money"></i>
+                        <span>Cash</span>
+                    </button>
+                    <button type="button" class="pos-pay-method" data-method="mpesa">
+                        <i class="fa fa-mobile"></i>
+                        <span>M-Pesa</span>
+                    </button>
+                    <button type="button" class="pos-pay-method" data-method="card">
+                        <i class="fa fa-credit-card"></i>
+                        <span>Card</span>
+                    </button>
+                </div>
+                <input type="hidden" id="sx-pay-method" value="cash">
+
+                <label class="pos-pay-label" id="sx-pay-received-label" for="sx-pay-received-input">Cash received</label>
+                <div class="pos-pay-amount-box">
+                    <span>KSh</span>
+                    <input type="number" step="0.01" min="0" id="sx-pay-received-input" value="0.00" inputmode="decimal">
+                </div>
+
+                <div class="pos-pay-line">
+                    <span>Change to return</span>
+                    <strong class="is-green" id="sx-pay-change">KSh 0.00</strong>
+                </div>
+
+                <label class="pos-pay-label" for="sx-pay-note">Note (optional)</label>
+                <textarea id="sx-pay-note" rows="2" placeholder="What's this payment for?"></textarea>
+
+                <div class="pos-pay-line">
+                    <span>Payment amount</span>
+                    <strong id="sx-pay-amount">KSh 0.00</strong>
+                </div>
+                <div class="pos-pay-line">
+                    <span>Transaction fee</span>
+                    <strong id="sx-pay-fee">KSh 0.00</strong>
+                </div>
+                <div class="pos-pay-line pos-pay-total">
+                    <span>Total to pay</span>
+                    <strong id="sx-pay-total">KSh 0.00</strong>
+                </div>
+                <div class="pos-pay-credit-note" id="sx-pay-credit-note" hidden>
+                    Credit sale allowed for this customer. Leave unpaid amount as account balance.
+                </div>
+                <button type="submit" class="pos-pay-complete">
+                    <i class="fa fa-check"></i>
+                    <span>Complete transaction</span>
+                    <i class="fa fa-arrow-right"></i>
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -216,91 +261,6 @@
     </div>
 </div>
 
-<div class="modal fade" id="sx-pos-pay-modal" tabindex="-1">
-    <div class="modal-dialog pos-pay-dialog">
-        <div class="modal-content pos-pay-modal">
-            <div class="pos-pay-head">
-                <i class="fa fa-money"></i> RECEIVE PAYMENT
-            </div>
-            <form id="sx-pos-pay-form">
-                <div class="pos-pay-body">
-                    <div class="pos-pay-fields">
-                        <div class="pos-pay-row">
-                            <label for="sx-pay-cash">Cash (F1)</label>
-                            <input type="number" step="0.01" min="0" id="sx-pay-cash" class="form-control pos-tender" data-method="cash" value="0.00">
-                        </div>
-                        <div class="pos-pay-row pos-pay-mpesa">
-                            <label for="sx-pay-mpesa">Mpesa (F2)</label>
-                            <div class="pos-pay-stack">
-                                <input type="number" step="0.01" min="0" id="sx-pay-mpesa" class="form-control pos-tender" data-method="mpesa" value="0.00">
-                                <div class="pos-pay-extra" id="sx-mpesa-extra" hidden>
-                                    <label for="sx-pay-mpesa-code">Trans Code</label>
-                                    <input type="text" id="sx-pay-mpesa-code" class="form-control" placeholder="Transaction Code">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="pos-pay-row pos-pay-bank">
-                            <label for="sx-pay-bank">Bank (F3)</label>
-                            <div class="pos-pay-stack">
-                                <input type="number" step="0.01" min="0" id="sx-pay-bank" class="form-control pos-tender" data-method="bank_transfer" value="0.00">
-                                <div class="pos-pay-extra" id="sx-bank-extra" hidden>
-                                    <label for="sx-pay-bank-name">Bank Name</label>
-                                    <input type="text" id="sx-pay-bank-name" class="form-control" placeholder="Enter bank name">
-                                    <label for="sx-pay-bank-ref">Reference</label>
-                                    <input type="text" id="sx-pay-bank-ref" class="form-control" placeholder="Ref No">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="pos-pay-row">
-                            <label for="sx-pay-comp">COMPLEMENTARY</label>
-                            <input type="number" step="0.01" min="0" id="sx-pay-comp" class="form-control pos-tender" data-method="complementary" placeholder="COMPLEMENTARY">
-                        </div>
-                        <div class="pos-pay-row">
-                            <label for="sx-pay-advance">Advance pay</label>
-                            <input type="number" step="0.01" min="0" id="sx-pay-advance" class="form-control pos-tender" data-method="advance" value="0.00">
-                        </div>
-                        <div class="pos-pay-row">
-                            <label for="sx-pay-note">SALES NOTE</label>
-                            <textarea id="sx-pay-note" class="form-control" rows="2" placeholder="SALES NOTE"></textarea>
-                        </div>
-                        <div class="pos-pay-row">
-                            <label for="sx-pay-service">EAT IN / TAKE AWAY</label>
-                            <select id="sx-pay-service" class="form-control">
-                                <option value="">Select</option>
-                                <option value="eat_in">Eat In</option>
-                                <option value="take_away">Take Away</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="pos-pay-summary">
-                        <div><span>Total items:</span><strong id="sx-pay-items">0</strong></div>
-                        <div><span>Total:</span><strong id="sx-pay-exclusive">0.00</strong></div>
-                        <div><span>Discount (-):</span><strong id="sx-pay-discount">0.00</strong></div>
-                        <div><span>Tax (+):</span><strong id="sx-pay-tax">0.00</strong></div>
-                        <div class="is-red"><span>Cur payable amt:</span><strong id="sx-pay-payable">0.00</strong></div>
-                        <div class="is-red"><span>Grand To payable:</span><strong id="sx-pay-grand-due">0.00</strong></div>
-                        <div><span>Total Received:</span><strong id="sx-pay-received">0.00</strong></div>
-                        <div><span>Balance:</span><strong id="sx-pay-balance">0.00</strong></div>
-                        <div class="is-orange"><span>Change Return:</span><strong id="sx-pay-change">0.00</strong></div>
-                        <div class="pos-pay-credit-note" id="sx-pay-credit-note" hidden>
-                            Credit sale allowed for this customer. Leave unpaid amount as account balance.
-                        </div>
-                    </div>
-                </div>
-                <div class="pos-pay-actions">
-                    <button type="button" class="pos-pay-close" data-dismiss="modal"><i class="fa fa-times"></i> Close</button>
-                    <button type="button" class="pos-pay-credit" id="sx-pay-credit" hidden><i class="fa fa-book"></i> Charge Account</button>
-                    <button type="submit" class="pos-pay-complete"><i class="fa fa-check"></i> Complete</button>
-                    <select id="sx-pay-logout" class="pos-pay-logout">
-                        <option value="stay">Don't Logout</option>
-                        <option value="logout">Logout</option>
-                    </select>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
 <div class="modal fade" id="sx-pos-holds-modal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content sx-conversion-modal">
@@ -344,6 +304,7 @@
     var discountType = 'fixed';
     var discountValue = 0;
     var holdId = null;
+    var payAmountEdited = false;
     var categoryId = null;
     var page = 1;
     var pages = 1;
@@ -414,6 +375,7 @@
         $('#sx-pos-amount').text(money(t.amount));
         $('#sx-pos-discount').text(money(t.discount));
         $('#sx-pos-grand').text(money(t.grand));
+        refreshPayPanel();
     }
 
     function addProduct(item, qty, unitKey) {
@@ -541,11 +503,19 @@
         };
     }
 
+    function clearPaymentFields() {
+        payAmountEdited = false;
+        $('#sx-pay-received-input').val('0.00');
+        $('#sx-pay-note').val('');
+        setPayMethod('cash');
+    }
+
     function resetCart() {
         cart = [];
         discountType = 'fixed';
         discountValue = 0;
         holdId = null;
+        clearPaymentFields();
         renderCart();
     }
 
@@ -682,26 +652,140 @@
         }
     });
 
+    var searchSeq = 0;
+    var scan = { buf: '', last: 0, target: null, start: null };
+    var scanAudio = null;
+
+    function codeMatchesItem(item, code) {
+        if (String(item.barcode || '') === code || String(item.sku || '') === code) return true;
+        if (item.scan_sell_as || item.scan_unit_id) return true;
+        return (item.selling_units || []).some(function (unit) {
+            return String(unit.barcode || '') === code;
+        });
+    }
+    function pickScanItem(items, code) {
+        var exact = (items || []).filter(function (item) { return codeMatchesItem(item, code); });
+        if (exact.length === 1) return exact[0];
+        if (exact.length > 1) {
+            var scanned = exact.filter(function (item) { return item.scan_sell_as || item.scan_unit_id; });
+            if (scanned.length === 1) return scanned[0];
+        }
+        return items.length === 1 ? items[0] : null;
+    }
+    function showSearchResults(items) {
+        if (!items.length) {
+            $('#sx-pos-results').html('<div class="pos-search-empty">No item for this code</div>').prop('hidden', false);
+            return;
+        }
+        var html = '';
+        items.forEach(function (item) {
+            html += '<button type="button" class="pos-search-item" data-item=\'' + JSON.stringify(item).replace(/'/g, '&#39;') + '\'><strong>' + escapeHtml(item.name) + '</strong>';
+            html += ' <small>' + money(item.price) + '</small>';
+            html += '</button>';
+        });
+        $('#sx-pos-results').html(html).prop('hidden', false);
+    }
+    function scanBeep(ok) {
+        try {
+            var Ctx = window.AudioContext || window.webkitAudioContext;
+            if (!Ctx) return;
+            if (!scanAudio) scanAudio = new Ctx();
+            if (scanAudio.state === 'suspended') scanAudio.resume();
+            var tone = scanAudio.createOscillator();
+            var gain = scanAudio.createGain();
+            tone.type = 'square';
+            tone.frequency.value = ok ? 880 : 220;
+            gain.gain.value = 0.05;
+            tone.connect(gain);
+            gain.connect(scanAudio.destination);
+            tone.start();
+            tone.stop(scanAudio.currentTime + (ok ? 0.06 : 0.14));
+        } catch (err) {}
+    }
+    function flashScanBox() {
+        var box = $('.pos-search-wrap');
+        box.addClass('is-scan');
+        setTimeout(function () { box.removeClass('is-scan'); }, 180);
+    }
+    function placeFoundItem(item, fromExactScan) {
+        if (fromExactScan && (item.scan_sell_as || item.scan_unit_id)) {
+            addProduct(item, 1, item.scan_sell_as || 'base');
+        } else if (item.packaging) {
+            openSellModal(item, item.scan_sell_as || null);
+        } else {
+            addProduct(item, 1, item.scan_sell_as || 'base');
+        }
+        $('#sx-pos-search').val('');
+        $('#sx-pos-results').prop('hidden', true).empty();
+        if (!$('.modal.in:visible, .modal.show:visible').length) {
+            $('#sx-pos-search').focus();
+        }
+    }
+    function addByCode(raw) {
+        var code = $.trim(raw);
+        if (!code) return;
+        var seq = ++searchSeq;
+        $.getJSON(searchUrl, { q: code }).done(function (items) {
+            if (seq !== searchSeq) return;
+            var item = pickScanItem(items, code);
+            if (!item) {
+                $('#sx-pos-search').val(code).focus().select();
+                showSearchResults(items);
+                scanBeep(false);
+                return;
+            }
+            placeFoundItem(item, codeMatchesItem(item, code));
+            flashScanBox();
+            scanBeep(true);
+        });
+    }
+    function rememberScan(e) {
+        var now = Date.now();
+        if (now - scan.last > 70) {
+            scan.buf = '';
+            scan.target = e.target;
+            var tag = ((e.target && e.target.tagName) || '').toLowerCase();
+            var isSearch = e.target && e.target.id === 'sx-pos-search';
+            scan.start = (!isSearch && (tag === 'input' || tag === 'textarea')) ? e.target.value : null;
+        }
+        scan.buf += e.key;
+        scan.last = now;
+    }
+    function takeScan(e) {
+        var burst = scan.buf.length >= 4 && (Date.now() - scan.last) <= 70;
+        var code = scan.buf;
+        var target = scan.target;
+        var start = scan.start;
+        scan.buf = '';
+        scan.start = null;
+        if (!burst) return null;
+        e.preventDefault();
+        if (target && start != null && (!target.id || target.id !== 'sx-pos-search')) {
+            target.value = start;
+            if (target.id === 'sx-pay-received-input') {
+                payAmountEdited = false;
+                refreshPayPanel();
+            }
+        }
+        return code;
+    }
+
     $('#sx-pos-search').on('input', function () {
         var q = $.trim($(this).val());
         clearTimeout(searchTimer);
+        var seq = ++searchSeq;
         if (!q) {
             $('#sx-pos-results').prop('hidden', true).empty();
             return;
         }
         searchTimer = setTimeout(function () {
             $.getJSON(searchUrl, { q: q }).done(function (items) {
+                if (seq !== searchSeq) return;
                 if (!items.length) {
                     $('#sx-pos-results').prop('hidden', true).empty();
                     return;
                 }
-                var html = '';
-                items.forEach(function (item) {
-                    html += '<button type="button" class="pos-search-item" data-item=\'' + JSON.stringify(item).replace(/'/g, '&#39;') + '\'><strong>' + escapeHtml(item.name) + '</strong>';
-                    html += ' <small>' + money(item.price) + '</small>';
-                    html += '</button>';
-                });
-                $('#sx-pos-results').html(html).prop('hidden', false);
+                showSearchResults(items);
             });
         }, 200);
     });
@@ -847,98 +931,73 @@
     function updateCreditUi() {
         var creditOk = canSellOnCredit();
         $('#sx-pay-credit-note').prop('hidden', !creditOk);
-        $('#sx-pay-credit').prop('hidden', !creditOk);
     }
 
     function roundMoney(n) {
         return Math.round((n || 0) * 100) / 100;
     }
-    function tendered($except) {
-        var total = 0;
-        $('.pos-tender').each(function () {
-            if ($except && this === $except[0]) return;
-            total += parseFloat($(this).val()) || 0;
-        });
-        return roundMoney(total);
+    function selectedPayMethod() {
+        return $('#sx-pay-method').val() || 'cash';
     }
-    function remainingDue($except) {
-        return roundMoney(Math.max(0, totals().grand - tendered($except)));
+    function setPayMethod(method) {
+        $('#sx-pay-method').val(method);
+        $('.pos-pay-method').removeClass('is-active');
+        $('.pos-pay-method[data-method="' + method + '"]').addClass('is-active');
+        var labels = { cash: 'Cash received', mpesa: 'M-Pesa received', card: 'Card amount' };
+        $('#sx-pay-received-label').text(labels[method] || 'Amount received');
+    }
+    function receivedAmount() {
+        return roundMoney(parseFloat($('#sx-pay-received-input').val()) || 0);
     }
     function refreshPayPanel() {
         var t = totals();
-        var received = tendered();
-        $('#sx-pay-items').text(t.qty);
-        $('#sx-pay-exclusive').text(money(t.exclusive));
-        $('#sx-pay-discount').text(money(t.discount));
-        $('#sx-pay-tax').text(money(t.tax));
-        $('#sx-pay-payable').text(money(t.grand));
-        $('#sx-pay-grand-due').text(money(Math.max(0, t.grand - received)));
-        $('#sx-pay-received').text(money(received));
-        $('#sx-pay-balance').text(money(Math.max(0, t.grand - received)));
-        $('#sx-pay-change').text(money(Math.max(0, received - t.grand)));
+        var fee = 0;
+        var due = roundMoney(t.grand + fee);
+        if (!payAmountEdited) {
+            $('#sx-pay-received-input').val(money(due));
+        }
+        var received = receivedAmount();
+        $('#sx-pay-amount').text('KSh ' + money(t.grand));
+        $('#sx-pay-fee').text('KSh ' + money(fee));
+        $('#sx-pay-total').text('KSh ' + money(due));
+        $('#sx-pay-change').text('KSh ' + money(Math.max(0, received - due)));
         updateCreditUi();
     }
     $('#sx-pos-customer').on('change', updateCreditUi);
-    $('#sx-pos-order').on('click', function () {
-        if (!requireCart()) return;
-        $('.pos-tender').val('0.00');
-        $('#sx-pay-comp').val('');
-        $('#sx-pay-note').val('');
-        $('#sx-pay-service').val('');
-        $('#sx-pay-mpesa-code, #sx-pay-bank-name, #sx-pay-bank-ref').val('');
-        $('#sx-mpesa-extra, #sx-bank-extra').prop('hidden', true);
-        refreshPayPanel();
-        $('#sx-pos-pay-modal').modal('show');
+    $(document).on('click', '.pos-pay-method', function () {
+        setPayMethod($(this).data('method'));
+        $('#sx-pay-received-input').focus().select();
     });
-    function fillTender($input) {
-        if ((parseFloat($input.val()) || 0) <= 0) {
-            // Fill only the unpaid remainder — never re-apply the full total onto a second method.
-            $input.val(money(remainingDue($input)));
+    $('#sx-pay-received-input').on('input', function () {
+        payAmountEdited = true;
+        refreshPayPanel();
+    });
+    $('#sx-pay-received-input').on('focus', function () {
+        if ((parseFloat($(this).val()) || 0) <= 0) {
+            $(this).val(money(totals().grand));
             refreshPayPanel();
         }
-        if ($input.is('#sx-pay-mpesa')) {
-            $('#sx-mpesa-extra').prop('hidden', false);
-        }
-        if ($input.is('#sx-pay-bank')) {
-            $('#sx-bank-extra').prop('hidden', false);
-        }
-    }
-    $(document).on('focus click', '#sx-pay-cash, #sx-pay-mpesa, #sx-pay-bank', function () {
-        fillTender($(this));
+        $(this).select();
     });
-    $(document).on('input', '.pos-tender', refreshPayPanel);
 
     function buildPaymentsFromTenders() {
         var t = totals();
-        var remaining = t.grand;
-        var payments = [];
+        var method = selectedPayMethod();
+        var amount = receivedAmount();
         var adjusted = false;
-        $('.pos-tender').each(function () {
-            var amount = roundMoney(parseFloat($(this).val()) || 0);
-            if (amount <= 0) return;
-            var method = String($(this).data('method') || 'cash');
-            var isCash = method === 'cash';
-            if (!isCash) {
-                if (amount - remaining > 0.009) {
-                    amount = remaining;
-                    adjusted = true;
-                }
-                remaining = roundMoney(Math.max(0, remaining - amount));
-            } else {
-                remaining = roundMoney(Math.max(0, remaining - Math.min(amount, remaining)));
-            }
-            if (amount <= 0) return;
-            var row = { method: method, amount: amount };
-            if ($(this).is('#sx-pay-mpesa')) {
-                row.reference = $.trim($('#sx-pay-mpesa-code').val());
-            }
-            if ($(this).is('#sx-pay-bank')) {
-                row.bank_name = $.trim($('#sx-pay-bank-name').val());
-                row.reference = $.trim($('#sx-pay-bank-ref').val());
-            }
-            payments.push(row);
-        });
-        return { payments: payments, adjusted: adjusted, grand: t.grand };
+        if (amount <= 0) {
+            return { payments: [], adjusted: false, grand: t.grand };
+        }
+        if (method !== 'cash' && amount - t.grand > 0.009) {
+            amount = t.grand;
+            adjusted = true;
+        }
+        var applied = method === 'cash' ? Math.min(amount, t.grand) : amount;
+        applied = roundMoney(applied);
+        if (applied <= 0) {
+            return { payments: [], adjusted: adjusted, grand: t.grand };
+        }
+        return { payments: [{ method: method, amount: applied }], adjusted: adjusted, grand: t.grand };
     }
 
     function submitSale(payments, opts) {
@@ -982,7 +1041,7 @@
 
         var payload = cartPayload();
         payload.notes = $('#sx-pay-note').val();
-        payload.service_type = $('#sx-pay-service').val();
+        payload.service_type = '';
         payload.payments = payments;
         payload.payment_amount = Math.min(t.grand, paySum);
         payload.payment_method = payments[0] ? payments[0].method : 'cash';
@@ -996,7 +1055,6 @@
             headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
             data: payload
         }).done(function (data) {
-            $('#sx-pos-pay-modal').modal('hide');
             // Refresh credit used for selected customer after a credit sale.
             if (balanceDue > 0.009) {
                 var $opt = selectedCustomerOption();
@@ -1004,13 +1062,8 @@
                 $opt.attr('data-credit-used', roundMoney(used + balanceDue));
             }
             resetCart();
-            loadCatalog();
             if (data.receipt_url) {
                 window.open(data.receipt_url, 'sx-pos-receipt', 'width=380,height=720');
-            }
-            if ($('#sx-pay-logout').val() === 'logout') {
-                $('.pos-logout-form').first().trigger('submit');
-                return;
             }
             var msg = data.receipt_number || data.invoice_number || data.number;
             if (balanceDue > 0.009) {
@@ -1022,18 +1075,9 @@
         });
     }
 
-    $('#sx-pay-credit').on('click', function () {
-        if (!canSellOnCredit()) {
-            Swal.fire({ icon: 'warning', title: 'Select a customer account', text: 'Walk-in cannot be charged on credit.' });
-            return;
-        }
-        $('.pos-tender').val('0.00');
-        refreshPayPanel();
-        submitSale([], { confirmedCredit: false });
-    });
-
     $('#sx-pos-pay-form').on('submit', function (e) {
         e.preventDefault();
+        if (!requireCart()) return;
         var built = buildPaymentsFromTenders();
         var paySum = built.payments.reduce(function (sum, row) { return sum + row.amount; }, 0);
         if (paySum <= 0 && !canSellOnCredit()) {
@@ -1043,8 +1087,8 @@
         if (built.adjusted) {
             Swal.fire({
                 icon: 'info',
-                title: 'Split payment adjusted',
-                text: 'Bank/M-Pesa was limited to the unpaid balance. Extra change must be cash only.'
+                title: 'Payment adjusted',
+                text: 'M-Pesa and card cannot be more than the total. Extra change is for cash only.'
             });
         }
         submitSale(built.payments);
@@ -1116,10 +1160,28 @@
     }
 
     $(document).on('keydown', function (e) {
-        if ($('#sx-pos-pay-modal').is(':visible')) {
-            if (e.key === 'F1') { e.preventDefault(); $('#sx-pay-cash').focus().select(); }
-            if (e.key === 'F2') { e.preventDefault(); $('#sx-pay-mpesa').focus().select(); }
-            if (e.key === 'F3') { e.preventDefault(); $('#sx-pay-bank').focus().select(); }
+        var modalOpen = $('.modal.in:visible, .modal.show:visible').length > 0;
+        if (!modalOpen && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+            rememberScan(e);
+        }
+        if (!modalOpen && (e.key === 'Enter' || e.key === 'Tab')) {
+            var scanned = takeScan(e);
+            if (scanned) {
+                addByCode(scanned);
+                return;
+            }
+            if (e.key === 'Enter' && e.target && e.target.id === 'sx-pos-search') {
+                e.preventDefault();
+                addByCode($('#sx-pos-search').val());
+                return;
+            }
+        }
+        if (!modalOpen && (e.key === 'F1' || e.key === 'F2' || e.key === 'F3')) {
+            e.preventDefault();
+            if (e.key === 'F1') setPayMethod('cash');
+            if (e.key === 'F2') setPayMethod('mpesa');
+            if (e.key === 'F3') setPayMethod('card');
+            $('#sx-pay-received-input').focus().select();
             return;
         }
         if (e.key === 'F10') {
@@ -1137,7 +1199,7 @@
     });
 
     renderCart();
-    loadCatalog();
+    $('#sx-pos-search').focus();
 })(jQuery);
 </script>
 @endpush

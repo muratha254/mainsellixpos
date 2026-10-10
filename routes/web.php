@@ -487,6 +487,10 @@ Route::middleware('auth')->group(function () {
         ->middleware('permission:suppliers.delete')
         ->name('suppliers.destroy');
 
+    Route::post('/suppliers/{supplier}/payments', [SupplierController::class, 'storePayment'])
+        ->middleware('permission:payments.create')
+        ->name('suppliers.payments.store');
+
     Route::middleware('permission:customers.view')->group(function () {
         Route::get('/customers/categories', [CustomerCategoryController::class, 'index'])->name('customers.categories');
         Route::get('/customers', [CustomerController::class, 'index'])->name('customers.index');

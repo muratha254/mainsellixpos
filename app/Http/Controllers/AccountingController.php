@@ -690,6 +690,8 @@ class AccountingController extends Controller
 
         return $this->page('accounting.suppliers', 'accounting.suppliers', [
             'suppliers' => $this->ledger->supplierRows(),
+            'canPay' => auth()->user()->hasPermission('payments.create'),
+            'paymentMethods' => config('sellix.payment_methods', []),
         ]);
     }
 

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Supplier;
+use App\Services\AuditLogger;
+use App\Services\SupplierPaymentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -18,13 +20,57 @@ class SupplierController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('suppliers.index', array_merge(fleet_shared_view_data(), [
+        return view('suppliers.index', array_merge(fleet_shared_view_data(), $this->paymentViewData(), [
             'activeMenu' => 'suppliers.index',
             'suppliers' => $suppliers,
             'canCreate' => auth()->user()->hasPermission('suppliers.create'),
             'canUpdate' => auth()->user()->hasPermission('suppliers.update'),
             'canDelete' => auth()->user()->hasPermission('suppliers.delete'),
         ]));
+    }
+
+    public function storePayment(Request $request, Supplier $supplier, SupplierPaymentService $payments, AuditLogger $audit)
+    {
+        $this->authorizePermission('payments.create');
+
+        $due = $supplier->currentBalance();
+        if ($due <= 0) {
+            return back()->with('error', 'This supplier has no outstanding balance.');
+        }
+
+        $data = $request->validate([
+            'amount' => 'required|numeric|min:0.01|max:' . max($due, 0.01),
+            'method' => 'required|in:' . implode(',', array_keys(config('sellix.payment_methods', ['cash' => 'Cash']))),
+            'reference' => 'nullable|string|max:64',
+            'notes' => 'nullable|string|max:1000',
+            'paid_at' => 'required|date',
+        ]);
+
+        try {
+            $result = $payments->apply(
+                $supplier,
+                (float) $data['amount'],
+                $data['method'],
+                $data['paid_at'],
+                $data['reference'] ?? null,
+                $data['notes'] ?? null,
+                $this->currentBranchId() ?: $supplier->branch_id
+            );
+        } catch (\InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage())->withInput();
+        }
+
+        $audit->record('payment', 'suppliers', $supplier, null, [
+            'supplier_id' => $supplier->id,
+            'amount' => $result['applied'],
+            'method' => $data['method'],
+            'payment_count' => count($result['payments']),
+        ]);
+
+        return back()->with(
+            'success',
+            'Paid Ksh ' . number_format($result['applied'], 2) . ' to ' . $supplier->name . '.'
+        );
     }
 
     public function create()
@@ -168,6 +214,14 @@ class SupplierController extends Controller
         fclose($handle);
 
         return redirect()->route('suppliers.index')->with('success', $created . ' supplier(s) imported.');
+    }
+
+    private function paymentViewData(): array
+    {
+        return [
+            'canPay' => auth()->user()->hasPermission('payments.create'),
+            'paymentMethods' => config('sellix.payment_methods', []),
+        ];
     }
 
     private function validated(Request $request, ?Supplier $supplier = null, bool $json = false): array

@@ -29,6 +29,9 @@
                         <th>Supplier Name</th>
                         <th>Phone Number</th>
                         <th>Current Balance</th>
+                        @if($canPay ?? false)
+                            <th class="sx-no-export">Action</th>
+                        @endif
                     </tr>
                 </thead>
                 <tbody>
@@ -39,6 +42,26 @@
                             <td>{{ $supplier->name }}</td>
                             <td>{{ $supplier->phone }}</td>
                             <td data-order="{{ $supplier->currentBalance() }}">Ksh {{ number_format($supplier->currentBalance(), 2) }}</td>
+                            @if($canPay ?? false)
+                                <td>
+                                    <div class="btn-group">
+                                        <button type="button" class="btn btn-primary btn-xs dropdown-toggle" data-toggle="dropdown">
+                                            Action <span class="caret"></span>
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-right sx-action-menu">
+                                            <li>
+                                                <a href="#" class="sx-open-supplier-pay"
+                                                    data-url="{{ route('suppliers.payments.store', $supplier) }}"
+                                                    data-name="{{ $supplier->name }}"
+                                                    data-due="{{ number_format($supplier->currentBalance(), 2) }}"
+                                                    data-due-raw="{{ number_format($supplier->currentBalance(), 2, '.', '') }}">
+                                                    <i class="fa fa-money"></i> Add Payment
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </td>
+                            @endif
                         </tr>
                     @endforeach
                 </tbody>
@@ -46,6 +69,8 @@
         </div>
     </div>
 </div>
+
+@include('suppliers.partials.payment-modal')
 @endsection
 
 @include('accounting.partials.datatable-js', [
@@ -56,6 +81,6 @@
     'colvisId' => 'sb-table-colvis',
     'title' => 'Suppliers Account Balances',
     'filename' => 'supplier-balances',
-    'noSort' => [0],
+    'noSort' => ($canPay ?? false) ? [0, 5] : [0],
     'order' => [[2, 'asc']],
 ])

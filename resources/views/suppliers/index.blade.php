@@ -83,6 +83,17 @@
                                         Action <span class="caret"></span>
                                     </button>
                                     <ul class="dropdown-menu dropdown-menu-right sx-action-menu">
+                                        @if($canPay ?? false)
+                                            <li>
+                                                <a href="#" class="sx-open-supplier-pay"
+                                                    data-url="{{ route('suppliers.payments.store', $supplier) }}"
+                                                    data-name="{{ $supplier->name }}"
+                                                    data-due="{{ number_format($supplier->currentBalance(), 2) }}"
+                                                    data-due-raw="{{ number_format($supplier->currentBalance(), 2, '.', '') }}">
+                                                    <i class="fa fa-money"></i> Add Payment
+                                                </a>
+                                            </li>
+                                        @endif
                                         @if($canUpdate)
                                             <li>
                                                 <a href="{{ route('suppliers.edit', $supplier) }}"><i class="fa fa-pencil"></i> Edit</a>
@@ -109,6 +120,8 @@
         </div>
     </div>
 </div>
+
+@include('suppliers.partials.payment-modal')
 
 @if($canCreate)
 <div class="modal fade" id="sx-supplier-import" tabindex="-1">

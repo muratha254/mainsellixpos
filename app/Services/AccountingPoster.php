@@ -13,6 +13,7 @@ use App\Models\Payment;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseReturn;
 use App\Models\SaleReturn;
+use App\Models\Supplier;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -315,6 +316,29 @@ class AccountingPoster
                 ['account' => $this->accountByName((int) $purchase->company_id, 'Inventory'), 'debit' => $net, 'credit' => 0, 'description' => 'Inventory receipt'],
                 ['account' => $this->accountByName((int) $purchase->company_id, 'Tax Receivable(VAT Input)'), 'debit' => $tax, 'credit' => 0, 'description' => 'VAT input'],
                 ['account' => $this->accountByName((int) $purchase->company_id, 'Accounts Payable'), 'debit' => 0, 'credit' => $amount, 'description' => 'Supplier payable'],
+            ]
+        );
+    }
+
+    public function postSupplierOpeningPayment(Supplier $supplier, Payment $payment): ?JournalEntry
+    {
+        $amount = round((float) $payment->amount, 2);
+        if ($amount <= 0) {
+            return null;
+        }
+
+        $this->ensureControlAccounts((int) $supplier->company_id);
+
+        return $this->postBalanced(
+            (int) $supplier->company_id,
+            $payment->branch_id ? (int) $payment->branch_id : ($supplier->branch_id ? (int) $supplier->branch_id : null),
+            $payment,
+            'supplier_opening_payment',
+            'Supplier opening payment ' . ($payment->number ?: $payment->id),
+            optional($payment->paid_at)->toDateString() ?: now()->toDateString(),
+            [
+                ['account' => $this->accountByName((int) $supplier->company_id, 'Accounts Payable'), 'debit' => $amount, 'credit' => 0, 'description' => 'Clear supplier opening balance'],
+                ['account' => $this->paymentMethodAccount((int) $supplier->company_id, (string) $payment->method), 'debit' => 0, 'credit' => $amount, 'description' => 'Cash/bank out'],
             ]
         );
     }

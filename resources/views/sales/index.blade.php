@@ -47,6 +47,7 @@
                     Total sale
                     <strong id="sl-head-total">Ksh {{ number_format((float) $salesTotal, 2) }}</strong>
                 </span>
+                <span>Points <strong id="sl-head-points">Ksh {{ number_format((float) $salesPoints, 2) }}</strong></span>
                 <span>Paid <strong id="sl-head-paid">Ksh {{ number_format((float) $salesPaid, 2) }}</strong></span>
                 <span>Balance <strong id="sl-head-balance">Ksh {{ number_format((float) $salesBalance, 2) }}</strong></span>
                 <span id="sl-head-count">{{ (int) $salesCount }} sale{{ (int) $salesCount === 1 ? '' : 's' }}</span>
@@ -74,6 +75,7 @@
                         <th>Status</th>
                         <th>Created By</th>
                         <th>Total</th>
+                        <th>Points</th>
                         <th>Paid</th>
                         <th>Balance</th>
                         <th>Pay Status</th>
@@ -112,6 +114,14 @@
                             </td>
                             <td>{{ optional($sale->cashier)->name ?: '-' }}</td>
                             <td data-order="{{ $sale->total }}">Ksh {{ number_format((float) $sale->total, 2) }}</td>
+                            <td data-order="{{ (float) $sale->loyalty_discount }}">
+                                @if((float) $sale->loyalty_points_redeemed > 0 || (float) $sale->loyalty_discount > 0)
+                                    <span class="sx-points-badge">Paid with points</span>
+                                    <span class="sx-points-amount">{{ number_format((float) $sale->loyalty_points_redeemed, 2) }} pts · Ksh {{ number_format((float) $sale->loyalty_discount, 2) }} off</span>
+                                @else
+                                    -
+                                @endif
+                            </td>
                             <td data-order="{{ $sale->paid_amount }}">Ksh {{ number_format((float) $sale->paid_amount, 2) }}</td>
                             <td data-order="{{ $sale->remainingBalance() }}">Ksh {{ number_format($sale->remainingBalance(), 2) }}</td>
                             <td><span class="sx-pay-badge {{ $payClass }}">{{ $sale->paymentStatusLabel() }}</span></td>
@@ -183,6 +193,7 @@
                     <tr>
                         <th colspan="6" class="text-right">Total sale</th>
                         <th id="sl-foot-total">Ksh {{ number_format((float) $salesTotal, 2) }}</th>
+                        <th id="sl-foot-points">Ksh {{ number_format((float) $salesPoints, 2) }}</th>
                         <th id="sl-foot-paid">Ksh {{ number_format((float) $salesPaid, 2) }}</th>
                         <th id="sl-foot-balance">Ksh {{ number_format((float) $salesBalance, 2) }}</th>
                         <th colspan="5"></th>
@@ -377,7 +388,7 @@
         order: [[2, 'desc']],
         autoWidth: false,
         columnDefs: [
-            { targets: [0, 1, 13], orderable: false, searchable: false }
+            { targets: [0, 1, 14], orderable: false, searchable: false }
         ],
         language: {
             lengthMenu: 'Show _MENU_ entries',
@@ -418,8 +429,9 @@
                 return total;
             }
             var saleTotal = sumCol(6);
-            var paid = sumCol(7);
-            var balance = sumCol(8);
+            var points = sumCol(7);
+            var paid = sumCol(8);
+            var balance = sumCol(9);
             var count = 0;
             api.rows({ search: 'applied' }).every(function () {
                 var row = this.node();
@@ -428,6 +440,7 @@
                 }
             });
             $('#sl-foot-total, #sl-head-total').text(money(saleTotal));
+            $('#sl-foot-points, #sl-head-points').text(money(points));
             $('#sl-foot-paid, #sl-head-paid').text(money(paid));
             $('#sl-foot-balance, #sl-head-balance').text(money(balance));
             $('#sl-head-count').text(count + (count === 1 ? ' sale' : ' sales'));

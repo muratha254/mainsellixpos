@@ -61,6 +61,7 @@ class SaleController extends Controller
             'activeMenu' => 'sales.index',
             'sales' => $sales,
             'salesTotal' => (float) $countable->sum('total'),
+            'salesPoints' => (float) $countable->sum('loyalty_discount'),
             'salesPaid' => (float) $countable->sum('paid_amount'),
             'salesBalance' => (float) $countable->sum(function (Sale $sale) {
                 return $sale->remainingBalance();

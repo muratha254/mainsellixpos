@@ -2017,6 +2017,26 @@ body > .dropdown-menu.sx-dropdown-fixed {
     white-space: nowrap;
 }
 
+.sx-points-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: #c9a027;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.sx-points-amount {
+    display: block;
+    margin-top: 3px;
+    color: #8a6d12;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
 .sx-pay-paid { background: #00a65a; }
 .sx-pay-partial { background: #f39c12; }
 .sx-pay-unpaid { background: #dd4b39; }

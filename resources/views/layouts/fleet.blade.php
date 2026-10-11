@@ -15,7 +15,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,600,700,300italic,400italic,600italic" media="print" onload="this.media='all'">
     <link rel="stylesheet" href="{{ asset('css/fleet-theme.css') }}?v=10">
-    <link rel="stylesheet" href="{{ asset('css/sellix-app.css') }}?v=68">
+    <link rel="stylesheet" href="{{ asset('css/sellix-app.css') }}?v=71">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" media="print" onload="this.media='all'">
     @if (! empty($fleetSetting))
     <style>

@@ -117,6 +117,12 @@ class LoyaltyProgramTest extends TestCase
         $this->assertEquals(400.0, (float) $sale->paid_amount);
         $this->assertEquals(0.0, (float) $sale->balance);
         $this->assertEquals(Sale::PAYMENT_PAID, $sale->payment_status);
+
+        $this->actingAsAdmin()->get(route('sales.index'))
+            ->assertOk()
+            ->assertSee('Paid with points', false)
+            ->assertSee('100.00 pts', false)
+            ->assertSee('Ksh 100.00 off', false);
     }
 
     public function test_redemption_below_the_minimum_is_rejected(): void

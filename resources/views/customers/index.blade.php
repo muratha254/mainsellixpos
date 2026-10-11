@@ -106,6 +106,9 @@
                                                 </a>
                                             </li>
                                         @endif
+                                        @if(! $customer->is_walk_in)
+                                            <li><a href="{{ route('customers.loyalty.show', $customer) }}"><i class="fa fa-star"></i> Loyalty Points</a></li>
+                                        @endif
                                         @if($canUpdate && ! $customer->is_walk_in)
                                             <li><a href="{{ route('customers.edit', $customer) }}"><i class="fa fa-pencil"></i> Edit</a></li>
                                         @endif

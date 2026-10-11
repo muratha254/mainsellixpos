@@ -150,7 +150,7 @@
                         <div class="form-group">
                             <label>Loyalty Points <span class="sx-req">*</span></label>
                             <input type="number" step="0.01" min="0" name="loyalty_points_rate" class="form-control" value="{{ $v('loyalty_points_rate', 0) }}" required>
-                            <small class="text-success">Note: Set to Zero(0) if points not applicable.</small>
+                            <small class="text-success">Points per KSh 1 spent. 0.01 means 1 point for every KSh 100. Use Loyalty Settings for redemption rules.</small>
                         </div>
                         <div class="form-group">
                             <label>Allow Order Sale <span class="sx-req">*</span></label>

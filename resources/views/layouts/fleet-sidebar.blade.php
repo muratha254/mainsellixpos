@@ -27,7 +27,7 @@
     ], true);
 
     $customerOpen = in_array($active, [
-        'customers.categories', 'customers.create', 'customers.index', 'customers.archived',
+        'customers.categories', 'customers.create', 'customers.index', 'customers.archived', 'customers.loyalty',
     ], true);
 
     $expenseOpen = in_array($active, [
@@ -130,6 +130,7 @@
                 ['key' => 'customers.categories', 'label' => 'Category', 'icon' => 'fa-tags', 'url' => route('customers.categories'), 'show' => $can('customers.view')],
                 ['key' => 'customers.create', 'label' => 'New Customer', 'icon' => 'fa-user-plus', 'url' => route('customers.create'), 'show' => $can('customers.create')],
                 ['key' => 'customers.index', 'label' => 'Customers List', 'icon' => 'fa-list', 'url' => route('customers.index'), 'show' => $can('customers.view')],
+                ['key' => 'customers.loyalty', 'label' => 'Loyalty Points', 'icon' => 'fa-star', 'url' => route('customers.loyalty.index'), 'show' => $can('customers.view')],
                 ['key' => 'customers.archived', 'label' => 'Archived Customers', 'icon' => 'fa-archive', 'url' => route('customers.archived'), 'show' => $can('customers.view')],
             ],
         ],
@@ -445,6 +446,7 @@
                 ['key' => 'billing.index', 'label' => 'Billing', 'icon' => 'fa-credit-card', 'url' => route('billing.index'), 'show' => $user->isCompanyAdmin() || $can('settings.view') || $can('settings.company')],
                 ['key' => 'settings.branches', 'label' => 'Manage Branch', 'icon' => 'fa-sitemap', 'url' => route('settings.branches'), 'show' => $can('settings.branches') || $can('branches.view') || $can('settings.view')],
                 ['key' => 'settings.general', 'label' => 'Site Settings', 'icon' => 'fa-shield', 'url' => route('settings.general'), 'show' => $can('settings.view') || $can('settings.company')],
+                ['key' => 'settings.loyalty', 'label' => 'Loyalty Settings', 'icon' => 'fa-star', 'url' => route('settings.loyalty'), 'show' => $can('settings.view') || $can('settings.company')],
                 ['key' => 'settings.tax', 'label' => 'Tax List', 'icon' => 'fa-percent', 'url' => route('settings.tax'), 'show' => $can('settings.view')],
                 ['key' => 'settings.salutation', 'label' => 'Salutation', 'icon' => 'fa-list', 'url' => route('settings.lookups', 'salutations'), 'show' => $can('settings.view')],
                 ['key' => 'settings.progress', 'label' => 'Progress Status', 'icon' => 'fa-list', 'url' => route('settings.lookups', 'progress-statuses'), 'show' => $can('settings.view')],

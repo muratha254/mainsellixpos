@@ -24,6 +24,11 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
+        $schedule->command('loyalty:expire')
+            ->dailyAt('00:40')
+            ->timezone('Africa/Nairobi')
+            ->withoutOverlapping();
+
         $schedule->command('subscription:sync-status')
             ->dailyAt('00:15')
             ->timezone('Africa/Nairobi')

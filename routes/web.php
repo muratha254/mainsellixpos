@@ -44,6 +44,7 @@ use App\Http\Controllers\StockReportsController;
 use App\Http\Controllers\ExpenseReportController;
 use App\Http\Controllers\SupplierReportController;
 use App\Http\Controllers\LoyaltyReportController;
+use App\Http\Controllers\LoyaltyController;
 use App\Http\Controllers\ExpiredItemsReportController;
 use App\Http\Controllers\CustomerReportsController;
 use App\Http\Controllers\AuditTrailReportController;
@@ -492,6 +493,10 @@ Route::middleware('auth')->group(function () {
         ->name('suppliers.payments.store');
 
     Route::middleware('permission:customers.view')->group(function () {
+        Route::get('/customers/loyalty', [LoyaltyController::class, 'index'])->name('customers.loyalty.index');
+        Route::get('/customers/loyalty/transactions', [LoyaltyController::class, 'transactions'])->name('customers.loyalty.transactions');
+        Route::get('/customers/{customer}/loyalty', [LoyaltyController::class, 'show'])->name('customers.loyalty.show');
+        Route::post('/customers/{customer}/loyalty', [LoyaltyController::class, 'adjust'])->name('customers.loyalty.adjust');
         Route::get('/customers/categories', [CustomerCategoryController::class, 'index'])->name('customers.categories');
         Route::get('/customers', [CustomerController::class, 'index'])->name('customers.index');
         Route::get('/customers/archived', [CustomerController::class, 'archived'])->name('customers.archived');
@@ -850,6 +855,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:settings.view')->group(function () {
         Route::get('/settings/general', [CompanySettingsController::class, 'general'])->name('settings.general');
         Route::get('/settings/company', [CompanySettingsController::class, 'company'])->name('settings.company');
+        Route::get('/settings/loyalty', [LoyaltyController::class, 'settings'])->name('settings.loyalty');
         Route::get('/settings/tax', [TaxSettingsController::class, 'index'])->name('settings.tax');
         Route::get('/settings/lookups/{kind}', [LookupSettingsController::class, 'index'])->name('settings.lookups');
         Route::get('/settings/audit', [SettingsAuditController::class, 'index'])->name('settings.audit');
@@ -859,6 +865,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:settings.company')->group(function () {
         Route::put('/settings/general', [CompanySettingsController::class, 'updateGeneral'])->name('settings.general.update');
         Route::put('/settings/company', [CompanySettingsController::class, 'updateCompany'])->name('settings.company.update');
+        Route::put('/settings/loyalty', [LoyaltyController::class, 'updateSettings'])->name('settings.loyalty.update');
         Route::get('/settings/tax/create', [TaxSettingsController::class, 'create'])->name('settings.tax.create');
         Route::post('/settings/tax', [TaxSettingsController::class, 'store'])->name('settings.tax.store');
         Route::get('/settings/tax/{tax}/edit', [TaxSettingsController::class, 'edit'])->name('settings.tax.edit');

@@ -22,6 +22,7 @@ use App\Support\DiscountCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use InvalidArgumentException;
 
 class PosController extends Controller
 {
@@ -51,6 +52,7 @@ class PosController extends Controller
             'heldCount' => $heldCount,
             'canCreateCustomer' => auth()->user()->hasPermission('customers.create'),
             'paymentMethods' => config('sellix.payment_methods', []),
+            'loyalty' => app(LoyaltyService::class)->rules((int) auth()->user()->company_id),
         ]));
     }
 
@@ -266,6 +268,7 @@ class PosController extends Controller
             'payments.*.amount' => 'required_with:payments|numeric|min:0.01',
             'payments.*.reference' => 'nullable|string|max:64',
             'payments.*.bank_name' => 'nullable|string|max:128',
+            'loyalty_points' => 'nullable|numeric|min:0',
         ]));
 
         $payments = collect($data['payments'] ?? [])
@@ -285,12 +288,27 @@ class PosController extends Controller
             }
         }
 
-        // Preview total for payment normalization (same formula as writeSale).
-        $previewTotal = (float) ($this->cartTotals($data)['total'] ?? 0);
+        $customer = Customer::query()->find($data['customer_id'] ?? null);
+        $preview = $this->cartTotals($data);
+        $loyaltyPoints = round((float) ($data['loyalty_points'] ?? 0), 2);
+        $loyaltyDiscount = 0.0;
+        if ($loyaltyPoints > 0) {
+            if (! $customer) {
+                return response()->json(['message' => 'Select a customer before redeeming points.'], 422);
+            }
+            try {
+                $quote = $loyalty->quoteRedemption($customer, $loyaltyPoints, $preview['lines'], $preview['discount']);
+            } catch (InvalidArgumentException $e) {
+                return response()->json(['message' => $e->getMessage()], 422);
+            }
+            $loyaltyDiscount = $quote['amount'];
+            $data['loyalty_points_redeemed'] = $quote['points'];
+            $data['loyalty_discount'] = $loyaltyDiscount;
+        }
+        $previewTotal = round(max(0, (float) $preview['total'] - $loyaltyDiscount), 2);
         $payments = $this->normalizeSalePayments($payments, $previewTotal);
         $payAmount = round((float) $payments->sum('amount'), 2);
 
-        $customer = Customer::query()->find($data['customer_id'] ?? null);
         $balanceDue = round(max(0, $previewTotal - min($payAmount, $previewTotal)), 2);
         if ($balanceDue > 0.009) {
             if (! $customer || $customer->is_walk_in) {
@@ -348,6 +366,7 @@ class PosController extends Controller
 
                 $sale->load(['items.product', 'payments']);
                 $accounting->postSale($sale);
+                $loyalty->redeemForSale($sale);
                 $loyalty->earnForSale($sale);
                 $audit->record('create', 'sales', $sale, null, [
                     'number' => $sale->number,
@@ -358,9 +377,13 @@ class PosController extends Controller
 
                 return $sale;
             });
-        } catch (NegativeStockException $e) {
+        } catch (NegativeStockException | InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
+
+        $balance = $sale->customer_id
+            ? (float) optional($sale->customer()->first())->loyalty_points
+            : 0;
 
         return response()->json([
             'id' => $sale->id,
@@ -368,6 +391,7 @@ class PosController extends Controller
             'invoice_number' => $sale->invoice_number,
             'receipt_number' => $sale->receipt_number,
             'receipt_url' => route('pos.receipt', $sale),
+            'loyalty_points' => round($balance, 2),
         ]);
     }
 
@@ -558,7 +582,9 @@ class PosController extends Controller
         $taxTotal = round(collect($lines)->sum('tax_amount'), 2);
         $discountType = $data['discount_type'] ?? 'fixed';
         $discountValue = $data['discount_value'] ?? $data['discount_amount'] ?? 0;
-        $discount = DiscountCalculator::money($discountType, $discountValue, $subtotal);
+        $cashierDiscount = DiscountCalculator::money($discountType, $discountValue, $subtotal);
+        $loyaltyDiscount = round(max(0, (float) ($data['loyalty_discount'] ?? 0)), 2);
+        $discount = round($cashierDiscount + $loyaltyDiscount, 2);
         $total = round(max(0, $subtotal - $discount), 2);
         $paid = min($total, $payAmount);
         $isInvoice = ($data['document_type'] ?? Sale::TYPE_POS) === Sale::TYPE_INVOICE;
@@ -574,10 +600,12 @@ class PosController extends Controller
             'status' => $status,
             'payment_status' => $status === Sale::STATUS_HELD
                 ? Sale::PAYMENT_UNPAID
-                : ($paid <= 0 ? Sale::PAYMENT_UNPAID : ($paid + 0.009 >= $total ? Sale::PAYMENT_PAID : Sale::PAYMENT_PARTIAL)),
+                : (($paid <= 0 && $total > 0.009) ? Sale::PAYMENT_UNPAID : ($paid + 0.009 >= $total ? Sale::PAYMENT_PAID : Sale::PAYMENT_PARTIAL)),
             'subtotal' => $subtotal,
             'discount_percent' => DiscountCalculator::percentStored($discountType, $discountValue),
             'discount_amount' => $discount,
+            'loyalty_points_redeemed' => round((float) ($data['loyalty_points_redeemed'] ?? 0), 2),
+            'loyalty_discount' => $loyaltyDiscount,
             'tax_amount' => $taxTotal,
             'total' => $total,
             'paid_amount' => $status === Sale::STATUS_HELD ? 0 : $paid,
@@ -657,6 +685,7 @@ class PosController extends Controller
         $conversion = app(UnitConversionService::class);
         $multiUnit = app(SettingsService::class)->get(auth()->user()->company_id, 'multi_unit_selling', 'Yes') !== 'No';
         $subtotal = 0;
+        $lines = [];
         foreach ($data['items'] as $row) {
             $product = Product::query()->with(['tax', 'unit', 'purchaseUnit', 'sellingUnits'])->find($row['product_id']);
             if (! $product) {
@@ -672,7 +701,13 @@ class PosController extends Controller
             $inclusive = (bool) $payload['tax_inclusive'];
             $rate = (float) $payload['tax_rate'];
             $displayPrice = $this->lineDisplayPrice($product, $unit, $payload, $row, $inclusive, $rate);
-            $subtotal += round($displayPrice * $qty, 2);
+            $lineTotal = round($displayPrice * $qty, 2);
+            $subtotal += $lineTotal;
+            $lines[] = [
+                'product_id' => (int) $product->id,
+                'quantity' => $qty,
+                'line_total' => $lineTotal,
+            ];
         }
         $discount = DiscountCalculator::money(
             $data['discount_type'] ?? 'fixed',
@@ -680,7 +715,12 @@ class PosController extends Controller
             $subtotal
         );
 
-        return ['total' => round(max(0, $subtotal - $discount), 2)];
+        return [
+            'subtotal' => round($subtotal, 2),
+            'discount' => $discount,
+            'total' => round(max(0, $subtotal - $discount), 2),
+            'lines' => $lines,
+        ];
     }
 
     private function normalizeSalePayments($payments, float $saleTotal)

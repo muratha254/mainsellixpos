@@ -20,6 +20,7 @@
                             data-walk-in="{{ $customer->is_walk_in ? '1' : '0' }}"
                             data-credit-limit="{{ (float) $customer->credit_limit }}"
                             data-credit-used="{{ $customer->creditAmount() }}"
+                            data-points="{{ number_format((float) $customer->loyalty_points, 2, '.', '') }}"
                             @if((int) $customer->id === (int) $walkInId) selected @endif
                         >
                             {{ $customer->is_walk_in ? 'WALK-IN' : $customer->name }}{{ $customer->phone ? ' - '.$customer->phone : '' }}
@@ -138,6 +139,26 @@
                 <div class="pos-pay-line">
                     <span>Change to return</span>
                     <strong class="is-green" id="sx-pay-change">KSh 0.00</strong>
+                </div>
+
+                <div id="sx-loyalty-box" hidden>
+                    <div class="pos-pay-line">
+                        <span>Loyalty points</span>
+                        <strong id="sx-loyalty-available">0.00</strong>
+                    </div>
+                    <div class="pos-pay-line">
+                        <span>Points value</span>
+                        <strong id="sx-loyalty-value">KSh 0.00</strong>
+                    </div>
+                    <label class="pos-pay-label" for="sx-loyalty-points">Points to redeem</label>
+                    <div class="pos-pay-amount-box">
+                        <span>Pts</span>
+                        <input type="number" step="0.01" min="0" id="sx-loyalty-points" value="0">
+                    </div>
+                    <div class="pos-pay-line">
+                        <span>Loyalty discount</span>
+                        <strong class="is-green" id="sx-loyalty-discount">KSh 0.00</strong>
+                    </div>
                 </div>
 
                 <label class="pos-pay-label" for="sx-pay-note">Note (optional)</label>
@@ -917,6 +938,7 @@
     });
 
     var walkInId = @json($walkInId);
+    var loyaltyRules = @json($loyalty ?? ['enabled' => false, 'min_redeem' => 0, 'point_value' => 0, 'max_redeem' => 0]);
 
     function selectedCustomerOption() {
         return $('#sx-pos-customer option:selected');
@@ -949,10 +971,40 @@
     function receivedAmount() {
         return roundMoney(parseFloat($('#sx-pay-received-input').val()) || 0);
     }
+    function loyaltyState() {
+        var opt = selectedCustomerOption();
+        var available = parseFloat(opt.data('points')) || 0;
+        var walkIn = String(opt.data('walk-in')) === '1';
+        var enabled = !!(loyaltyRules && loyaltyRules.enabled && loyaltyRules.point_value > 0 && !walkIn);
+        var eligible = enabled && available + 0.0001 >= (parseFloat(loyaltyRules.min_redeem) || 0) && available > 0;
+        return { available: available, enabled: enabled, eligible: eligible };
+    }
+    function loyaltyQuote(grandBefore) {
+        var state = loyaltyState();
+        $('#sx-loyalty-box').prop('hidden', !state.eligible);
+        $('#sx-loyalty-available').text(money(state.available));
+        var value = state.available * (parseFloat(loyaltyRules.point_value) || 0);
+        $('#sx-loyalty-value').text('KSh ' + money(value));
+        if (!state.eligible) {
+            $('#sx-loyalty-points').val('0');
+            $('#sx-loyalty-discount').text('KSh 0.00');
+            return { points: 0, amount: 0 };
+        }
+        var pts = parseFloat($('#sx-loyalty-points').val()) || 0;
+        pts = Math.max(0, Math.min(pts, state.available));
+        if ((parseFloat(loyaltyRules.max_redeem) || 0) > 0) {
+            pts = Math.min(pts, parseFloat(loyaltyRules.max_redeem));
+        }
+        var amount = roundMoney(pts * (parseFloat(loyaltyRules.point_value) || 0));
+        amount = Math.min(amount, Math.max(0, grandBefore));
+        $('#sx-loyalty-discount').text('KSh ' + money(amount));
+        return { points: roundMoney(pts), amount: amount };
+    }
     function refreshPayPanel() {
         var t = totals();
         var fee = 0;
-        var due = roundMoney(t.grand + fee);
+        var loy = loyaltyQuote(t.grand);
+        var due = roundMoney(Math.max(0, t.grand - loy.amount) + fee);
         if (!payAmountEdited) {
             $('#sx-pay-received-input').val(money(due));
         }
@@ -963,7 +1015,15 @@
         $('#sx-pay-change').text('KSh ' + money(Math.max(0, received - due)));
         updateCreditUi();
     }
-    $('#sx-pos-customer').on('change', updateCreditUi);
+    $('#sx-pos-customer').on('change', function () {
+        $('#sx-loyalty-points').val('0');
+        payAmountEdited = false;
+        refreshPayPanel();
+    });
+    $('#sx-loyalty-points').on('input', function () {
+        payAmountEdited = false;
+        refreshPayPanel();
+    });
     $(document).on('click', '.pos-pay-method', function () {
         setPayMethod($(this).data('method'));
         $('#sx-pay-received-input').focus().select();
@@ -980,31 +1040,36 @@
         $(this).select();
     });
 
-    function buildPaymentsFromTenders() {
+    function payableTotal() {
         var t = totals();
+        return roundMoney(Math.max(0, t.grand - loyaltyQuote(t.grand).amount));
+    }
+    function buildPaymentsFromTenders() {
+        var due = payableTotal();
         var method = selectedPayMethod();
         var amount = receivedAmount();
         var adjusted = false;
         if (amount <= 0) {
-            return { payments: [], adjusted: false, grand: t.grand };
+            return { payments: [], adjusted: false, grand: due };
         }
-        if (method !== 'cash' && amount - t.grand > 0.009) {
-            amount = t.grand;
+        if (method !== 'cash' && amount - due > 0.009) {
+            amount = due;
             adjusted = true;
         }
-        var applied = method === 'cash' ? Math.min(amount, t.grand) : amount;
+        var applied = method === 'cash' ? Math.min(amount, due) : amount;
         applied = roundMoney(applied);
         if (applied <= 0) {
-            return { payments: [], adjusted: adjusted, grand: t.grand };
+            return { payments: [], adjusted: adjusted, grand: due };
         }
-        return { payments: [{ method: method, amount: applied }], adjusted: adjusted, grand: t.grand };
+        return { payments: [{ method: method, amount: applied }], adjusted: adjusted, grand: due };
     }
 
     function submitSale(payments, opts) {
         opts = opts || {};
         var t = totals();
+        var due = payableTotal();
         var paySum = payments.reduce(function (sum, row) { return sum + row.amount; }, 0);
-        var balanceDue = roundMoney(Math.max(0, t.grand - paySum));
+        var balanceDue = roundMoney(Math.max(0, due - paySum));
         var creditOk = canSellOnCredit();
 
         if (balanceDue > 0.009 && !creditOk) {
@@ -1043,8 +1108,9 @@
         payload.notes = $('#sx-pay-note').val();
         payload.service_type = '';
         payload.payments = payments;
-        payload.payment_amount = Math.min(t.grand, paySum);
+        payload.payment_amount = Math.min(due, paySum);
         payload.payment_method = payments[0] ? payments[0].method : 'cash';
+        payload.loyalty_points = loyaltyQuote(t.grand).points;
         payload.on_credit = balanceDue > 0.009 ? 1 : 0;
         if (balanceDue > 0.009) {
             payload.document_type = 'invoice';
@@ -1060,6 +1126,9 @@
                 var $opt = selectedCustomerOption();
                 var used = parseFloat($opt.data('credit-used')) || 0;
                 $opt.attr('data-credit-used', roundMoney(used + balanceDue));
+            }
+            if (data.loyalty_points != null) {
+                selectedCustomerOption().attr('data-points', data.loyalty_points);
             }
             resetCart();
             if (data.receipt_url) {
@@ -1080,7 +1149,8 @@
         if (!requireCart()) return;
         var built = buildPaymentsFromTenders();
         var paySum = built.payments.reduce(function (sum, row) { return sum + row.amount; }, 0);
-        if (paySum <= 0 && !canSellOnCredit()) {
+        var dueNow = roundMoney(Math.max(0, totals().grand - loyaltyQuote(totals().grand).amount));
+        if (paySum <= 0 && dueNow > 0.009 && !canSellOnCredit()) {
             Swal.fire({ icon: 'warning', title: 'Enter a payment amount' });
             return;
         }

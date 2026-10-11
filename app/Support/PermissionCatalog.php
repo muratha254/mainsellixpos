@@ -158,6 +158,8 @@ class PermissionCatalog
 
             'customers.delete' => ['module' => 'customers', 'label' => 'Delete customers'],
 
+            'customers.loyalty' => ['module' => 'customers', 'label' => 'Adjust loyalty points'],
+
 
 
             'payments.view' => ['module' => 'payments', 'label' => 'View payments'],
@@ -334,7 +336,7 @@ class PermissionCatalog
 
                     'suppliers.view', 'suppliers.create', 'suppliers.update',
 
-                    'customers.view', 'customers.create', 'customers.update',
+                    'customers.view', 'customers.create', 'customers.update', 'customers.loyalty',
 
                     'payments.view', 'payments.create',
 

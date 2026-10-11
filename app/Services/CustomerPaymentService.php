@@ -11,11 +11,13 @@ class CustomerPaymentService
 {
     protected DocumentNumberService $numbers;
     protected AccountingPoster $accounting;
+    protected LoyaltyService $loyalty;
 
-    public function __construct(DocumentNumberService $numbers, AccountingPoster $accounting)
+    public function __construct(DocumentNumberService $numbers, AccountingPoster $accounting, LoyaltyService $loyalty)
     {
         $this->numbers = $numbers;
         $this->accounting = $accounting;
+        $this->loyalty = $loyalty;
     }
 
     /**
@@ -104,6 +106,9 @@ class CustomerPaymentService
                 ]);
 
                 $this->accounting->postSalePayment($sale->fresh(), $payment);
+                if ($status === Sale::PAYMENT_PAID) {
+                    $this->loyalty->earnForSale($sale->fresh(['items', 'customer']));
+                }
                 $payments[] = $payment;
                 $remaining = round($remaining - $pay, 2);
             }

@@ -350,6 +350,7 @@ class SaleController extends Controller
         });
 
         $this->syncPaymentState($sale->fresh());
+        app(LoyaltyService::class)->earnForSale($sale->fresh(['items', 'customer']));
 
         return redirect()->route('sales.show', $sale)->with('success', 'Payment saved.');
     }
@@ -404,6 +405,7 @@ class SaleController extends Controller
         });
 
         $this->syncPaymentState($sale->fresh());
+        app(LoyaltyService::class)->earnForSale($sale->fresh(['items', 'customer']));
 
         return redirect()->route('sales.show', $sale)->with('success', 'Instalment payment recorded.');
     }

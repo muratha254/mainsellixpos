@@ -11,6 +11,7 @@ use App\Models\StockMovement;
 use App\Services\AccountingPoster;
 use App\Services\DocumentNumberService;
 use App\Services\InventoryService;
+use App\Services\LoyaltyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -39,7 +40,7 @@ class SaleReturnController extends Controller
         return response()->json($this->returnablePayload($sale));
     }
 
-    public function store(Request $request, Sale $sale, DocumentNumberService $numbers, InventoryService $inventory, AccountingPoster $accounting)
+    public function store(Request $request, Sale $sale, DocumentNumberService $numbers, InventoryService $inventory, AccountingPoster $accounting, LoyaltyService $loyalty)
     {
         $this->authorizePermission('sales.return');
         abort_unless($sale->status === Sale::STATUS_COMPLETED, 422, 'Only a completed sale can be returned.');
@@ -118,7 +119,7 @@ class SaleReturnController extends Controller
         });
 
         try {
-            DB::transaction(function () use ($sale, $data, $lines, $numbers, $inventory, $accounting, $wantRefund, $refundAmount, $restoreAny) {
+            DB::transaction(function () use ($sale, $data, $lines, $numbers, $inventory, $accounting, $loyalty, $wantRefund, $refundAmount, $restoreAny) {
                 $return = SaleReturn::query()->create([
                     'company_id' => $sale->company_id,
                     'branch_id' => $sale->branch_id,
@@ -170,6 +171,7 @@ class SaleReturnController extends Controller
                 }
 
                 if ($wantRefund && $refundAmount > 0) {
+                    $loyalty->reverseForReturn($return->fresh('sale'), $refundAmount);
                     $paid = max(0, round((float) $sale->paid_amount - $refundAmount, 2));
                     $total = max(0, round((float) $sale->total - $refundAmount, 2));
                     $sale->update([

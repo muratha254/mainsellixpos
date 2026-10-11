@@ -32,6 +32,7 @@ class Sale extends Model
         'sale_date', 'due_date', 'status', 'payment_status',
         'subtotal', 'discount_percent', 'discount_amount', 'tax_amount',
         'total', 'paid_amount', 'balance', 'notes',
+        'loyalty_points_redeemed', 'loyalty_discount',
         'held_at', 'voided_at', 'voided_by', 'void_reason',
         'void_refund', 'void_flagged',
     ];
@@ -43,6 +44,8 @@ class Sale extends Model
         'discount_percent' => 'decimal:2',
         'discount_amount' => 'decimal:2',
         'tax_amount' => 'decimal:2',
+        'loyalty_points_redeemed' => 'decimal:2',
+        'loyalty_discount' => 'decimal:2',
         'total' => 'decimal:2',
         'paid_amount' => 'decimal:2',
         'balance' => 'decimal:2',

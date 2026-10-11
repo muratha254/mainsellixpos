@@ -88,6 +88,37 @@ class LoyaltyProgramTest extends TestCase
             ->assertSee('Redeem');
     }
 
+    public function test_points_reduce_a_larger_sale_and_the_customer_pays_the_rest(): void
+    {
+        $settings = app(SettingsService::class);
+        $settings->set($this->company->id, 'loyalty_enabled', '1', 'loyalty');
+        $settings->set($this->company->id, 'loyalty_point_value', '1', 'loyalty');
+        $settings->set($this->company->id, 'loyalty_min_redeem', '0', 'loyalty');
+
+        $customer = $this->namedCustomer(100);
+        ProductBranchStock::query()->where('product_id', $this->product->id)->update(['quantity' => 20]);
+
+        $response = $this->actingAsAdmin()->postJson(route('pos.order'), [
+            'customer_id' => $customer->id,
+            'sale_date' => now()->toDateString(),
+            'document_type' => 'pos',
+            'items' => [
+                ['product_id' => $this->product->id, 'quantity' => 5],
+            ],
+            'payment_amount' => 400,
+            'payment_method' => 'cash',
+            'loyalty_points' => 100,
+        ]);
+
+        $response->assertOk();
+        $sale = Sale::query()->findOrFail($response->json('id'));
+        $this->assertEquals(100.0, (float) $sale->loyalty_discount);
+        $this->assertEquals(400.0, (float) $sale->total);
+        $this->assertEquals(400.0, (float) $sale->paid_amount);
+        $this->assertEquals(0.0, (float) $sale->balance);
+        $this->assertEquals(Sale::PAYMENT_PAID, $sale->payment_status);
+    }
+
     public function test_redemption_below_the_minimum_is_rejected(): void
     {
         app(SettingsService::class)->set($this->company->id, 'loyalty_min_redeem', '100', 'loyalty');

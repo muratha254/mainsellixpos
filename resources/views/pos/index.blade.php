@@ -149,14 +149,18 @@
                     </span>
                 </button>
                 <input type="hidden" id="sx-loyalty-points" value="0">
-                <div class="pos-pay-line" id="sx-loyalty-deducted" hidden>
-                    <span>Points deduction</span>
-                    <strong class="is-green" id="sx-loyalty-discount">KSh 0.00</strong>
-                </div>
 
                 <label class="pos-pay-label" for="sx-pay-note">Note (optional)</label>
                 <textarea id="sx-pay-note" rows="2" placeholder="What's this payment for?"></textarea>
 
+                <div class="pos-pay-line" id="sx-pay-sale-line" hidden>
+                    <span>Sale total</span>
+                    <strong id="sx-pay-sale">KSh 0.00</strong>
+                </div>
+                <div class="pos-pay-line" id="sx-loyalty-deducted" hidden>
+                    <span>Points deduction</span>
+                    <strong class="is-green" id="sx-loyalty-discount">KSh 0.00</strong>
+                </div>
                 <div class="pos-pay-line">
                     <span>Payment amount</span>
                     <strong id="sx-pay-amount">KSh 0.00</strong>
@@ -980,19 +984,23 @@
         var points = each > 0 ? roundMoney(Math.min(cap, amount / each)) : 0;
         amount = roundMoney(Math.min(points * each, Math.max(0, grandBefore || 0)));
         var meetsMin = minPoints <= 0 || available + 0.0001 >= minPoints;
-        var ready = can && meetsMin && points > 0 && amount > 0;
+        var usable = can && meetsMin && available > 0 && each > 0;
+        var ready = usable && points > 0 && amount > 0;
         var note = 'Select a customer account';
         if (!walkIn && !can) note = 'Loyalty is turned off';
         else if (!walkIn && available <= 0) note = 'This customer has no points';
         else if (!walkIn && !meetsMin) note = 'Needs ' + money(minPoints) + ' points. This customer has ' + money(available);
-        else if (!walkIn) note = money(available) + ' points = KSh ' + money(worth) + ' off';
-        return { ready: ready, points: points, amount: amount, note: note };
+        else if (!walkIn) note = money(available) + ' points = KSh ' + money(worth) + ' off the amount due';
+        return { ready: ready, usable: usable, points: points, amount: amount, note: note };
     }
     function loyaltyQuote(grandBefore) {
         var offer = loyaltyOffer(grandBefore);
         var on = payWithPoints && offer.ready;
+        var due = roundMoney(Math.max(0, (grandBefore || 0) - (on ? offer.amount : 0)));
         $('#sx-pay-with-points').prop('disabled', !offer.ready).toggleClass('is-active', on);
-        $('#sx-loyalty-caption').text(on ? ('Deducting KSh ' + money(offer.amount)) : offer.note);
+        $('#sx-loyalty-caption').text(on
+            ? ('KSh ' + money(grandBefore) + ' − KSh ' + money(offer.amount) + ' = pay KSh ' + money(due))
+            : offer.note);
         if (!on) {
             $('#sx-loyalty-points').val('0');
             $('#sx-loyalty-deducted').prop('hidden', true);
@@ -1012,16 +1020,18 @@
             $('#sx-pay-received-input').val(money(due));
         }
         var received = receivedAmount();
-        $('#sx-pay-amount').text('KSh ' + money(t.grand));
+        $('#sx-pay-sale').text('KSh ' + money(t.grand));
+        $('#sx-pay-sale-line').prop('hidden', loy.amount <= 0);
+        $('#sx-pay-amount').text('KSh ' + money(due));
         $('#sx-pay-fee').text('KSh ' + money(fee));
         $('#sx-pay-total').text('KSh ' + money(due));
         $('#sx-pay-change').text('KSh ' + money(Math.max(0, received - due)));
         updateCreditUi();
     }
     $('#sx-pos-customer').on('change', function () {
-        payWithPoints = false;
-        $('#sx-loyalty-points').val('0');
         payAmountEdited = false;
+        payWithPoints = loyaltyOffer(totals().grand).usable;
+        $('#sx-loyalty-points').val('0');
         refreshPayPanel();
     });
     $('#sx-pay-with-points').on('click', function () {
@@ -1040,7 +1050,7 @@
     });
     $('#sx-pay-received-input').on('focus', function () {
         if ((parseFloat($(this).val()) || 0) <= 0) {
-            $(this).val(money(totals().grand));
+            $(this).val(money(payableTotal()));
             refreshPayPanel();
         }
         $(this).select();

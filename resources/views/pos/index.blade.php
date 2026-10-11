@@ -938,7 +938,7 @@
     });
 
     var walkInId = @json($walkInId);
-    var loyaltyRules = @json($loyalty ?? ['enabled' => false, 'min_redeem' => 0, 'point_value' => 0, 'max_redeem' => 0]);
+    var loyaltyRules = @json($loyalty);
 
     function selectedCustomerOption() {
         return $('#sx-pos-customer option:selected');

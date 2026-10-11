@@ -23,6 +23,15 @@ class LoyaltyProgramTest extends TestCase
         $this->setUpSellixWorld();
     }
 
+    public function test_pos_page_renders_with_loyalty_rules(): void
+    {
+        $this->actingAsAdmin()
+            ->get(route('pos.index'))
+            ->assertOk()
+            ->assertSee('RECEIVE PAYMENT', false)
+            ->assertSee('loyaltyRules', false);
+    }
+
     public function test_purchase_earns_points_and_a_later_sale_can_redeem_them(): void
     {
         $settings = app(SettingsService::class);

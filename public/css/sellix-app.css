@@ -2639,9 +2639,18 @@ body.pos-body {
 }
 
 .pos-pay-sheet {
+    flex: 1 1 auto;
     width: 100%;
-    padding: 14px 18px 12px;
-    overflow: hidden;
+    min-height: 0;
+    padding: 14px 18px 8px;
+    overflow: auto;
+}
+
+.pos-pay-actions {
+    flex: 0 0 auto;
+    padding: 8px 18px 12px;
+    background: #fff;
+    border-top: 1px solid #eee;
 }
 
 .pos-pay-label {
@@ -2670,7 +2679,7 @@ body.pos-body {
     align-items: center;
     justify-content: center;
     gap: 6px;
-    height: 68px;
+    height: 56px;
     border: 1px solid #d2d6de;
     border-radius: 2px;
     background: #faf8f5;
@@ -2697,7 +2706,7 @@ body.pos-body {
     gap: 10px;
     width: 100%;
     margin-top: 8px;
-    min-height: 52px;
+    min-height: 44px;
     padding: 8px 12px;
     border: 1px solid #d2d6de;
     border-radius: 2px;
@@ -2764,7 +2773,7 @@ body.pos-body {
 
 .pos-pay-sheet textarea {
     width: 100%;
-    min-height: 52px;
+    min-height: 40px;
     padding: 8px 10px;
     border: 1px solid #d2d6de;
     border-radius: 0;
@@ -2825,7 +2834,7 @@ body.pos-body {
     width: 100%;
     min-width: 0;
     height: 44px;
-    margin-top: 12px;
+    margin-top: 0;
     padding: 0 14px;
     border: 0;
     border-radius: 2px;
@@ -3462,6 +3471,7 @@ body.pos-body {
 }
 
 .pos-pay-head {
+    flex: 0 0 auto;
     background: #c9a027;
     color: #fff;
     text-align: center;

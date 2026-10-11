@@ -176,6 +176,8 @@
                 <div class="pos-pay-credit-note" id="sx-pay-credit-note" hidden>
                     Credit sale allowed for this customer. Leave unpaid amount as account balance.
                 </div>
+            </div>
+            <div class="pos-pay-actions">
                 <button type="submit" class="pos-pay-complete">
                     <i class="fa fa-check"></i>
                     <span>Complete transaction</span>

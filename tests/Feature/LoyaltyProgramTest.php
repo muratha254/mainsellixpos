@@ -29,7 +29,7 @@ class LoyaltyProgramTest extends TestCase
             ->get(route('pos.index'))
             ->assertOk()
             ->assertSee('RECEIVE PAYMENT', false)
-            ->assertSee('loyaltyRules', false);
+            ->assertSee('Pay with points', false);
     }
 
     public function test_purchase_earns_points_and_a_later_sale_can_redeem_them(): void

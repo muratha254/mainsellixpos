@@ -141,24 +141,17 @@
                     <strong class="is-green" id="sx-pay-change">KSh 0.00</strong>
                 </div>
 
-                <div id="sx-loyalty-box" hidden>
-                    <div class="pos-pay-line">
-                        <span>Loyalty points</span>
-                        <strong id="sx-loyalty-available">0.00</strong>
-                    </div>
-                    <div class="pos-pay-line">
-                        <span>Points value</span>
-                        <strong id="sx-loyalty-value">KSh 0.00</strong>
-                    </div>
-                    <label class="pos-pay-label" for="sx-loyalty-points">Points to redeem</label>
-                    <div class="pos-pay-amount-box">
-                        <span>Pts</span>
-                        <input type="number" step="0.01" min="0" id="sx-loyalty-points" value="0">
-                    </div>
-                    <div class="pos-pay-line">
-                        <span>Loyalty discount</span>
-                        <strong class="is-green" id="sx-loyalty-discount">KSh 0.00</strong>
-                    </div>
+                <button type="button" id="sx-pay-with-points" class="pos-pay-points">
+                    <i class="fa fa-star"></i>
+                    <span>
+                        <strong>Pay with points</strong>
+                        <small id="sx-loyalty-caption">Select a customer account</small>
+                    </span>
+                </button>
+                <input type="hidden" id="sx-loyalty-points" value="0">
+                <div class="pos-pay-line" id="sx-loyalty-deducted" hidden>
+                    <span>Points deduction</span>
+                    <strong class="is-green" id="sx-loyalty-discount">KSh 0.00</strong>
                 </div>
 
                 <label class="pos-pay-label" for="sx-pay-note">Note (optional)</label>
@@ -939,6 +932,7 @@
 
     var walkInId = @json($walkInId);
     var loyaltyRules = @json($loyalty);
+    var payWithPoints = false;
 
     function selectedCustomerOption() {
         return $('#sx-pos-customer option:selected');
@@ -971,34 +965,43 @@
     function receivedAmount() {
         return roundMoney(parseFloat($('#sx-pay-received-input').val()) || 0);
     }
-    function loyaltyState() {
+    function loyaltyOffer(grandBefore) {
         var opt = selectedCustomerOption();
-        var available = parseFloat(opt.data('points')) || 0;
-        var walkIn = String(opt.data('walk-in')) === '1';
-        var enabled = !!(loyaltyRules && loyaltyRules.enabled && loyaltyRules.point_value > 0 && !walkIn);
-        var eligible = enabled && available + 0.0001 >= (parseFloat(loyaltyRules.min_redeem) || 0) && available > 0;
-        return { available: available, enabled: enabled, eligible: eligible };
+        var available = parseFloat(opt.attr('data-points')) || 0;
+        var walkIn = String(opt.data('walk-in')) === '1' || (walkInId && String(opt.val()) === String(walkInId));
+        var each = parseFloat(loyaltyRules && loyaltyRules.point_value) || 0;
+        var can = !!(loyaltyRules && loyaltyRules.can_redeem && !walkIn);
+        var minPoints = parseFloat(loyaltyRules && loyaltyRules.min_redeem) || 0;
+        var maxPoints = parseFloat(loyaltyRules && loyaltyRules.max_redeem) || 0;
+        var cap = available;
+        if (maxPoints > 0) cap = Math.min(cap, maxPoints);
+        var worth = roundMoney(Math.max(0, cap * each));
+        var amount = roundMoney(Math.min(worth, Math.max(0, grandBefore || 0)));
+        var points = each > 0 ? roundMoney(Math.min(cap, amount / each)) : 0;
+        amount = roundMoney(Math.min(points * each, Math.max(0, grandBefore || 0)));
+        var meetsMin = minPoints <= 0 || available + 0.0001 >= minPoints;
+        var ready = can && meetsMin && points > 0 && amount > 0;
+        var note = 'Select a customer account';
+        if (!walkIn && !can) note = 'Loyalty is turned off';
+        else if (!walkIn && available <= 0) note = 'This customer has no points';
+        else if (!walkIn && !meetsMin) note = 'Needs ' + money(minPoints) + ' points. This customer has ' + money(available);
+        else if (!walkIn) note = money(available) + ' points = KSh ' + money(worth) + ' off';
+        return { ready: ready, points: points, amount: amount, note: note };
     }
     function loyaltyQuote(grandBefore) {
-        var state = loyaltyState();
-        $('#sx-loyalty-box').prop('hidden', !state.eligible);
-        $('#sx-loyalty-available').text(money(state.available));
-        var value = state.available * (parseFloat(loyaltyRules.point_value) || 0);
-        $('#sx-loyalty-value').text('KSh ' + money(value));
-        if (!state.eligible) {
+        var offer = loyaltyOffer(grandBefore);
+        var on = payWithPoints && offer.ready;
+        $('#sx-pay-with-points').prop('disabled', !offer.ready).toggleClass('is-active', on);
+        $('#sx-loyalty-caption').text(on ? ('Deducting KSh ' + money(offer.amount)) : offer.note);
+        if (!on) {
             $('#sx-loyalty-points').val('0');
-            $('#sx-loyalty-discount').text('KSh 0.00');
+            $('#sx-loyalty-deducted').prop('hidden', true);
             return { points: 0, amount: 0 };
         }
-        var pts = parseFloat($('#sx-loyalty-points').val()) || 0;
-        pts = Math.max(0, Math.min(pts, state.available));
-        if ((parseFloat(loyaltyRules.max_redeem) || 0) > 0) {
-            pts = Math.min(pts, parseFloat(loyaltyRules.max_redeem));
-        }
-        var amount = roundMoney(pts * (parseFloat(loyaltyRules.point_value) || 0));
-        amount = Math.min(amount, Math.max(0, grandBefore));
-        $('#sx-loyalty-discount').text('KSh ' + money(amount));
-        return { points: roundMoney(pts), amount: amount };
+        $('#sx-loyalty-points').val(offer.points.toFixed(2));
+        $('#sx-loyalty-discount').text('KSh ' + money(offer.amount));
+        $('#sx-loyalty-deducted').prop('hidden', false);
+        return { points: offer.points, amount: offer.amount };
     }
     function refreshPayPanel() {
         var t = totals();
@@ -1016,11 +1019,14 @@
         updateCreditUi();
     }
     $('#sx-pos-customer').on('change', function () {
+        payWithPoints = false;
         $('#sx-loyalty-points').val('0');
         payAmountEdited = false;
         refreshPayPanel();
     });
-    $('#sx-loyalty-points').on('input', function () {
+    $('#sx-pay-with-points').on('click', function () {
+        if ($(this).prop('disabled')) return;
+        payWithPoints = !payWithPoints;
         payAmountEdited = false;
         refreshPayPanel();
     });

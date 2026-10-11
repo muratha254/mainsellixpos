@@ -36,6 +36,7 @@ class LoyaltyService
 
         $rate = round(max(0, (float) $this->settings->get($companyId, 'loyalty_points_rate', 0)), 6);
         $pointsPerItem = round(max(0, (float) $this->settings->get($companyId, 'loyalty_points_per_item', 0)), 2);
+        $pointValue = round(max(0, (float) $this->settings->get($companyId, 'loyalty_point_value', 1)), 4);
         $storedEnabled = $this->settings->get($companyId, 'loyalty_enabled', null);
         if ($storedEnabled === null || $storedEnabled === '') {
             $enabled = $rate > 0 || ($mode === 'item' && $pointsPerItem > 0);
@@ -49,7 +50,8 @@ class LoyaltyService
             'rate' => $rate,
             'points_per_item' => $pointsPerItem,
             'min_redeem' => round(max(0, (float) $this->settings->get($companyId, 'loyalty_min_redeem', 0)), 2),
-            'point_value' => round(max(0, (float) $this->settings->get($companyId, 'loyalty_point_value', 1)), 4),
+            'point_value' => $pointValue,
+            'can_redeem' => (string) $storedEnabled !== '0' && $pointValue > 0,
             'max_redeem' => round(max(0, (float) $this->settings->get($companyId, 'loyalty_max_redeem', 0)), 2),
             'eligible' => $eligible,
             'expiry_days' => max(0, (int) $this->settings->get($companyId, 'loyalty_expiry_days', 0)),
@@ -271,11 +273,8 @@ class LoyaltyService
         }
 
         $rules = $this->rules((int) $locked->company_id);
-        if (! $rules['enabled']) {
+        if (empty($rules['can_redeem'])) {
             throw new \InvalidArgumentException('The loyalty program is turned off.');
-        }
-        if ($rules['point_value'] <= 0) {
-            throw new \InvalidArgumentException('Set a redemption value before points can be used.');
         }
 
         $this->expireLocked($locked);
@@ -335,7 +334,7 @@ class LoyaltyService
             }
 
             $rules = $this->rules((int) $sale->company_id);
-            if (! $rules['enabled']) {
+            if (empty($rules['can_redeem'])) {
                 throw new \InvalidArgumentException('The loyalty program is turned off.');
             }
 

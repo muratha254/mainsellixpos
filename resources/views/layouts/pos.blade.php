@@ -14,7 +14,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,600,700" media="print" onload="this.media='all'">
     <link rel="stylesheet" href="{{ asset('css/fleet-theme.css') }}?v=9">
-    <link rel="stylesheet" href="{{ asset('css/sellix-app.css') }}?v=67">
+    <link rel="stylesheet" href="{{ asset('css/sellix-app.css') }}?v=69">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" media="print" onload="this.media='all'">
 </head>
 <body class="pos-body sellix-app">

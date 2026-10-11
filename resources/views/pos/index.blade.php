@@ -23,7 +23,7 @@
                             data-points="{{ number_format((float) $customer->loyalty_points, 2, '.', '') }}"
                             @if((int) $customer->id === (int) $walkInId) selected @endif
                         >
-                            {{ $customer->is_walk_in ? 'WALK-IN' : $customer->name }}{{ $customer->phone ? ' - '.$customer->phone : '' }}
+                            {{ $customer->is_walk_in ? 'WALK-IN' : $customer->name }}{{ $customer->phone ? ' - '.$customer->phone : '' }}@if(! $customer->is_walk_in && (float) $customer->loyalty_points > 0) ({{ rtrim(rtrim(number_format((float) $customer->loyalty_points, 2, '.', ''), '0'), '.') }} pts)@endif
                         </option>
                     @endforeach
                 </select>
@@ -323,6 +323,7 @@
     var discountValue = 0;
     var holdId = null;
     var payAmountEdited = false;
+    var fillingReceived = false;
     var categoryId = null;
     var page = 1;
     var pages = 1;
@@ -973,8 +974,9 @@
         var opt = selectedCustomerOption();
         var available = parseFloat(opt.attr('data-points')) || 0;
         var walkIn = String(opt.data('walk-in')) === '1' || (walkInId && String(opt.val()) === String(walkInId));
-        var each = parseFloat(loyaltyRules && loyaltyRules.point_value) || 0;
-        var can = !!(loyaltyRules && loyaltyRules.can_redeem && !walkIn);
+        var each = parseFloat(loyaltyRules && loyaltyRules.point_value);
+        if (!(each > 0)) each = 1;
+        var can = !walkIn;
         var minPoints = parseFloat(loyaltyRules && loyaltyRules.min_redeem) || 0;
         var maxPoints = parseFloat(loyaltyRules && loyaltyRules.max_redeem) || 0;
         var cap = available;
@@ -987,8 +989,7 @@
         var usable = can && meetsMin && available > 0 && each > 0;
         var ready = usable && points > 0 && amount > 0;
         var note = 'Select a customer account';
-        if (!walkIn && !can) note = 'Loyalty is turned off';
-        else if (!walkIn && available <= 0) note = 'This customer has no points';
+        if (!walkIn && available <= 0) note = 'This customer has no points';
         else if (!walkIn && !meetsMin) note = 'Needs ' + money(minPoints) + ' points. This customer has ' + money(available);
         else if (!walkIn) note = money(available) + ' points = KSh ' + money(worth) + ' off the amount due';
         return { ready: ready, usable: usable, points: points, amount: amount, note: note };
@@ -997,9 +998,9 @@
         var offer = loyaltyOffer(grandBefore);
         var on = payWithPoints && offer.ready;
         var due = roundMoney(Math.max(0, (grandBefore || 0) - (on ? offer.amount : 0)));
-        $('#sx-pay-with-points').prop('disabled', !offer.ready).toggleClass('is-active', on);
+        $('#sx-pay-with-points').prop('disabled', false).toggleClass('is-active', on);
         $('#sx-loyalty-caption').text(on
-            ? ('KSh ' + money(grandBefore) + ' − KSh ' + money(offer.amount) + ' = pay KSh ' + money(due))
+            ? ('KSh ' + money(grandBefore) + ' − KSh ' + money(offer.amount) + ' = enter KSh ' + money(due))
             : offer.note);
         if (!on) {
             $('#sx-loyalty-points').val('0');
@@ -1017,7 +1018,7 @@
         var loy = loyaltyQuote(t.grand);
         var due = roundMoney(Math.max(0, t.grand - loy.amount) + fee);
         if (!payAmountEdited) {
-            $('#sx-pay-received-input').val(money(due));
+            writeReceived(due);
         }
         var received = receivedAmount();
         $('#sx-pay-sale').text('KSh ' + money(t.grand));
@@ -1028,15 +1029,26 @@
         $('#sx-pay-change').text('KSh ' + money(Math.max(0, received - due)));
         updateCreditUi();
     }
+    function writeReceived(amount) {
+        fillingReceived = true;
+        $('#sx-pay-received-input').val(money(amount));
+        fillingReceived = false;
+    }
     $('#sx-pos-customer').on('change', function () {
+        payWithPoints = false;
         payAmountEdited = false;
-        payWithPoints = loyaltyOffer(totals().grand).usable;
         $('#sx-loyalty-points').val('0');
         refreshPayPanel();
     });
-    $('#sx-pay-with-points').on('click', function () {
-        if ($(this).prop('disabled')) return;
-        payWithPoints = !payWithPoints;
+    $('#sx-pay-with-points').on('click', function (e) {
+        e.preventDefault();
+        var offer = loyaltyOffer(totals().grand);
+        var active = $(this).hasClass('is-active');
+        if (!active && !offer.ready) {
+            Swal.fire({ icon: 'info', title: 'Pay with points', text: offer.note });
+            return;
+        }
+        payWithPoints = !active;
         payAmountEdited = false;
         refreshPayPanel();
     });
@@ -1045,6 +1057,7 @@
         $('#sx-pay-received-input').focus().select();
     });
     $('#sx-pay-received-input').on('input', function () {
+        if (fillingReceived) return;
         payAmountEdited = true;
         refreshPayPanel();
     });

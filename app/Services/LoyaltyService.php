@@ -294,7 +294,7 @@ class LoyaltyService
         }
 
         $eligible = $this->eligiblePayable($lines, $cashierDiscount, $rules);
-        $amount = round($points * $this->redemptionUnit($rules), 2);
+        $amount = round($points * (float) $rules['point_value'], 2);
         if ($amount - $eligible > 0.009) {
             throw new \InvalidArgumentException(
                 'Loyalty discount cannot exceed the payable total of Ksh ' . number_format($eligible, 2) . '.'
@@ -338,7 +338,7 @@ class LoyaltyService
                 throw new \InvalidArgumentException('Not enough loyalty points to complete this sale.');
             }
 
-            $expected = round($points * $this->redemptionUnit($rules), 2);
+            $expected = round($points * (float) $rules['point_value'], 2);
             if (abs($expected - (float) $sale->loyalty_discount) > 0.05) {
                 throw new \InvalidArgumentException('Loyalty discount does not match the points being redeemed.');
             }
@@ -708,13 +708,6 @@ class LoyaltyService
         $paid = round((float) $sale->paid_amount, 2);
 
         return $sale->payment_status === Sale::PAYMENT_PAID || $total <= 0.009 || $paid + 0.009 >= $total;
-    }
-
-    private function redemptionUnit(array $rules): float
-    {
-        $unit = round((float) ($rules['point_value'] ?? 0), 4);
-
-        return $unit > 0 ? $unit : 1.0;
     }
 
     private function moveBalance(Customer $customer, float $delta, bool $clamp): float

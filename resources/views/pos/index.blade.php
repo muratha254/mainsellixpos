@@ -974,9 +974,8 @@
         var opt = selectedCustomerOption();
         var available = parseFloat(opt.attr('data-points')) || 0;
         var walkIn = String(opt.data('walk-in')) === '1' || (walkInId && String(opt.val()) === String(walkInId));
-        var each = parseFloat(loyaltyRules && loyaltyRules.point_value);
-        if (!(each > 0)) each = 1;
-        var can = !walkIn;
+        var each = parseFloat(loyaltyRules && loyaltyRules.point_value) || 0;
+        var can = !walkIn && each > 0;
         var minPoints = parseFloat(loyaltyRules && loyaltyRules.min_redeem) || 0;
         var maxPoints = parseFloat(loyaltyRules && loyaltyRules.max_redeem) || 0;
         var cap = available;
@@ -989,10 +988,11 @@
         var usable = can && meetsMin && available > 0 && each > 0;
         var ready = usable && points > 0 && amount > 0;
         var note = 'Select a customer account';
-        if (!walkIn && available <= 0) note = 'This customer has no points';
+        if (!walkIn && each <= 0) note = 'Set the shilling value of 1 point in Loyalty Settings';
+        else if (!walkIn && available <= 0) note = 'This customer has no points';
         else if (!walkIn && !meetsMin) note = 'Needs ' + money(minPoints) + ' points. This customer has ' + money(available);
-        else if (!walkIn) note = money(available) + ' points = KSh ' + money(worth) + ' off the amount due';
-        return { ready: ready, usable: usable, points: points, amount: amount, note: note };
+        else if (!walkIn) note = money(available) + ' points × KSh ' + money(each) + ' = KSh ' + money(worth);
+        return { ready: ready, usable: usable, points: points, amount: amount, each: each, note: note };
     }
     function loyaltyQuote(grandBefore) {
         var offer = loyaltyOffer(grandBefore);
@@ -1000,7 +1000,7 @@
         var due = roundMoney(Math.max(0, (grandBefore || 0) - (on ? offer.amount : 0)));
         $('#sx-pay-with-points').prop('disabled', false).toggleClass('is-active', on);
         $('#sx-loyalty-caption').text(on
-            ? ('KSh ' + money(grandBefore) + ' − KSh ' + money(offer.amount) + ' = enter KSh ' + money(due))
+            ? (money(offer.points) + ' pts × KSh ' + money(offer.each) + ' = KSh ' + money(offer.amount) + ' off. Enter KSh ' + money(due))
             : offer.note);
         if (!on) {
             $('#sx-loyalty-points').val('0');

@@ -83,6 +83,7 @@
                     <div class="form-group">
                         <label class="sx-req">KSh value of 1 point*</label>
                         <input type="number" step="0.01" min="0" name="loyalty_point_value" class="form-control" value="{{ old('loyalty_point_value', $rules['point_value']) }}" @if(! $canUpdate) disabled @endif required>
+                        <small class="text-muted">The POS uses this amount. 1.00 means 100 points take KSh 100 off a sale.</small>
                     </div>
                 </div>
                 <div class="col-md-4">

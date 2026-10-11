@@ -9,11 +9,18 @@ class ExpandLoyaltyProgram extends Migration
 {
     public function up()
     {
+        $mysql = Schema::getConnection()->getDriverName() === 'mysql';
+        if ($mysql) {
+            Schema::table('loyalty_transactions', function (Blueprint $table) {
+                $table->dropForeign(['company_id']);
+            });
+        }
+
         Schema::table('loyalty_transactions', function (Blueprint $table) {
             $table->dropUnique('loyalty_source_unique');
         });
 
-        Schema::table('loyalty_transactions', function (Blueprint $table) {
+        Schema::table('loyalty_transactions', function (Blueprint $table) use ($mysql) {
             $table->string('status', 32)->default('posted');
             $table->unsignedBigInteger('sale_id')->nullable()->index();
             $table->decimal('amount', 15, 2)->nullable();
@@ -23,6 +30,9 @@ class ExpandLoyaltyProgram extends Migration
                 ['company_id', 'source_type', 'source_id', 'type', 'reference'],
                 'loyalty_source_unique'
             );
+            if ($mysql) {
+                $table->foreign('company_id')->references('id')->on('companies')->cascadeOnDelete();
+            }
         });
 
         DB::table('loyalty_transactions')
@@ -61,10 +71,20 @@ class ExpandLoyaltyProgram extends Migration
             }
         });
 
-        Schema::table('loyalty_transactions', function (Blueprint $table) {
+        $mysql = Schema::getConnection()->getDriverName() === 'mysql';
+        if ($mysql) {
+            Schema::table('loyalty_transactions', function (Blueprint $table) {
+                $table->dropForeign(['company_id']);
+            });
+        }
+
+        Schema::table('loyalty_transactions', function (Blueprint $table) use ($mysql) {
             $table->dropUnique('loyalty_source_unique');
             $table->dropColumn(['status', 'sale_id', 'amount', 'points_remaining', 'expires_at']);
             $table->unique(['company_id', 'source_type', 'source_id', 'type'], 'loyalty_source_unique');
+            if ($mysql) {
+                $table->foreign('company_id')->references('id')->on('companies')->cascadeOnDelete();
+            }
         });
     }
 }

@@ -9,6 +9,7 @@ use App\Models\ProductBranchStock;
 use App\Models\Sale;
 use App\Services\LoyaltyService;
 use App\Services\SettingsService;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\Support\CreatesSellixWorld;
 use Tests\TestCase;
@@ -360,6 +361,9 @@ class LoyaltyProgramTest extends TestCase
         $settings->set($this->company->id, 'receipt_heading', 'Original Cash Sale Receipt', 'receipt');
         $settings->set($this->company->id, 'till_paybill', '542542', 'receipt');
         $settings->set($this->company->id, 'till_account_no', '202331', 'receipt');
+        $settings->set($this->company->id, 'display_logo', 'No', 'receipt');
+        Storage::disk('public')->put('company-logos/receipt-logo.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='));
+        $this->company->update(['logo_path' => 'company-logos/receipt-logo.png']);
 
         $customer = $this->namedCustomer(0);
         $response = $this->actingAsAdmin()->postJson(route('pos.order'), $this->salePayload($customer->id, 1, 100));
@@ -371,13 +375,28 @@ class LoyaltyProgramTest extends TestCase
             ->assertSee('Shop No. 3, Posta, Ruiru', false)
             ->assertSee('TEL: 0740421824', false)
             ->assertSee('Original Cash Sale Receipt', false)
-            ->assertSee('Pin No:', false)
-            ->assertSee('P051234567X', false)
+            ->assertSee('data:image/png;base64,', false)
+            ->assertSee('Pin No: P051234567X', false)
             ->assertSee('Rct No:', false)
-            ->assertSee('Sold To', false)
+            ->assertSee('Date:', false)
+            ->assertSee('Sold To:', false);
+
+        $this->company->update(['tax_pin' => null]);
+        $this->actingAsAdmin()->get(route('pos.receipt', $response->json('id')))
+            ->assertOk()
+            ->assertDontSee('Pin No:', false)
+            ->assertSee('Rct No:', false)
+            ->assertSee('Date:', false)
             ->assertSee('PAYBILL NO. 542542', false)
             ->assertSee('ACCOUNT NO. 202331', false)
-            ->assertSee('#Pcs:', false);
+            ->assertSee('#Pcs:', false)
+            ->assertSee('Total 100.00', false)
+            ->assertSee('Paymode', false)
+            ->assertSee('Tendered', false)
+            ->assertSee('Change', false)
+            ->assertDontSee('Mpesa', false)
+            ->assertDontSee('Card', false)
+            ->assertDontSee('1.0', false);
     }
 
     private function namedCustomer(float $points): Customer

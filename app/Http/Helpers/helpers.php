@@ -42,8 +42,12 @@ function receipt_print_options(int $companyId): array
         $paybill = '';
     }
 
+    $company = \App\Models\Company::query()->find($companyId);
+    $hasLogo = $company && filled($company->logo_path);
+    $logoChoice = (string) $settings->get($companyId, 'display_logo', 'Yes');
+
     return [
-        'show_logo' => $yes('display_logo'),
+        'show_logo' => $hasLogo && $logoChoice !== 'No',
         'show_name' => $yes('display_name', 'Yes'),
         'show_address' => $yes('display_address', 'Yes'),
         'show_phone' => $yes('display_phone'),
@@ -56,6 +60,23 @@ function receipt_print_options(int $companyId): array
         'paybill' => $paybill,
         'account_no' => trim((string) $settings->get($companyId, 'till_account_no', '')),
     ];
+}
+
+function receipt_logo_src(array $profile): string
+{
+    $path = (string) ($profile['logo_pdf_path'] ?? '');
+    if ($path !== '' && is_file($path)) {
+        $mime = function_exists('mime_content_type') ? mime_content_type($path) : false;
+        if (! is_string($mime) || strpos($mime, 'image/') !== 0) {
+            $mime = 'image/png';
+        }
+        $bytes = @file_get_contents($path);
+        if ($bytes !== false && $bytes !== '') {
+            return 'data:'.$mime.';base64,'.base64_encode($bytes);
+        }
+    }
+
+    return (string) ($profile['logo_url'] ?? '');
 }
 
 function fleet_company_profile(): array

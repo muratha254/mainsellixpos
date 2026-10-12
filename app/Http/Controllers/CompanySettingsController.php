@@ -435,7 +435,7 @@ class CompanySettingsController extends Controller
             'receipt_control' => 'Print One Copy',
             'choose_print' => 'Invoice Only',
             'captain_category' => 'Captain Without Price',
-            'display_logo' => 'No',
+            'display_logo' => 'Yes',
             'display_name' => 'Yes',
             'display_address' => 'Yes',
             'display_phone' => 'No',

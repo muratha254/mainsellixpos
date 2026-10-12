@@ -4,7 +4,8 @@
     <meta charset="utf-8">
     <title>POS {{ $sale->documentNumber() }}</title>
     <style>
-        body { font-family: DejaVu Sans, sans-serif; font-size: 10px; color: #000; margin: 0; padding: 6px; }
+        body, td, th, div { font-family: DejaVu Sans, sans-serif; font-size: 11px; color: #000; font-weight: 700; }
+        body { margin: 0; padding: 6px; }
         .center { text-align: center; }
         .bold { font-weight: 700; }
         .company { font-size: 14px; font-weight: 700; text-transform: uppercase; }
@@ -13,8 +14,10 @@
         td, th { padding: 1px 0; vertical-align: top; }
         .num { text-align: right; white-space: nowrap; }
         .name { text-transform: uppercase; }
-        .items th { border-bottom: 1px solid #000; font-size: 9px; }
-        .total-line td { border-top: 1px solid #000; border-bottom: 3px double #000; font-weight: 700; }
+        .items { table-layout: fixed; }
+        .items th { font-size: 9px; border-bottom: 1px dotted #000; padding-bottom: 3px; }
+        .sum { margin-top: 3px; border-top: 1px dotted #000; border-bottom: 1px dotted #000; }
+        .sum td { font-weight: 700; padding: 3px 0; }
     </style>
 </head>
 <body>
@@ -28,11 +31,32 @@
     $pieces = (float) $sale->items->sum('quantity');
     $qtyText = abs($pieces - round($pieces)) < 0.001 ? number_format($pieces, 0) : number_format($pieces, 1);
     $byMethod = ['cash' => 0.0, 'mpesa' => 0.0, 'card' => 0.0];
+    $otherPayments = [];
     foreach ($sale->payments as $payment) {
         $method = (string) $payment->method;
         if (array_key_exists($method, $byMethod)) {
             $byMethod[$method] += (float) $payment->amount;
+        } else {
+            $otherPayments[] = $payment;
         }
+    }
+    $methodNames = ['cash' => 'Cash', 'mpesa' => 'Mpesa', 'card' => 'Card'];
+    $labels = $paymentLabels ?? config('sellix.payment_methods', []);
+    $usedMethods = [];
+    foreach ($byMethod as $method => $amount) {
+        if ($amount > 0.009) {
+            $usedMethods[] = ['label' => $methodNames[$method], 'amount' => $amount];
+        }
+    }
+    foreach ($otherPayments as $payment) {
+        $amount = (float) $payment->amount;
+        if ($amount <= 0.009) {
+            continue;
+        }
+        $usedMethods[] = [
+            'label' => $labels[$payment->method] ?? ucfirst((string) $payment->method),
+            'amount' => $amount,
+        ];
     }
     $tendered = (float) $sale->payments->sum('amount');
     if ($tendered <= 0) {
@@ -45,7 +69,17 @@
         : max(0, $tendered - (float) $sale->total);
     $paybill = trim((string) ($options['paybill'] ?? ''));
     $accountNo = trim((string) ($options['account_no'] ?? ''));
+    $pin = trim((string) ($profile['companyTaxPin'] ?? ''));
+    if (in_array($pin, ['', '-', '0'], true)) {
+        $pin = '';
+    }
+    $showPin = $show('show_pin') && $pin !== '';
+    $logoSrc = receipt_logo_src($profile);
+    $showLogo = $logoSrc !== '' && ($show('show_logo') || is_file((string) ($profile['logo_pdf_path'] ?? '')));
 @endphp
+    @if($showLogo)
+        <div class="center"><img src="{{ $logoSrc }}" alt="Logo" style="max-width:160px;max-height:70px;"></div>
+    @endif
     @if($show('show_name'))
         <div class="center company">{{ $profile['companyName'] ?? fleet_system_name() }}</div>
     @endif
@@ -56,17 +90,14 @@
         <div class="center bold">TEL: {{ $profile['companyPhone'] }}</div>
     @endif
     <div class="center bold" style="margin:6px 0;">{{ $options['heading'] ?? 'Original Cash Sale Receipt' }}</div>
-    <table>
-        <tr>
-            <td>Pin No:</td>
-            <td class="num">{{ $show('show_pin') ? ($profile['companyTaxPin'] ?? '') : '' }}</td>
-        </tr>
-        <tr>
-            <td>Rct No: {{ $number }}</td>
-            <td class="num">Date: {{ optional($sale->created_at)->format('d-M-Y H:i') }}</td>
-        </tr>
-        <tr><td colspan="2">Sold To : {{ $customerName }}</td></tr>
-    </table>
+    <div>
+        @if($showPin)
+            <div>Pin No: {{ $pin }}</div>
+        @endif
+        <div>Rct No: {{ $number }}</div>
+        <div>Date: {{ optional($sale->created_at)->format('d-M-Y H:i') }}</div>
+        <div>Sold To: {{ $customerName }}</div>
+    </div>
     <table class="items">
         <thead>
             <tr>
@@ -80,42 +111,40 @@
             @foreach($sale->items as $item)
                 <tr>
                     <td class="name">{{ $item->name }}</td>
-                    <td class="num">{{ number_format((float) $item->quantity, 1) }}</td>
+                    <td class="num">{{ rtrim(rtrim(number_format((float) $item->quantity, 2, '.', ''), '0'), '.') }}</td>
                     <td class="num">{{ number_format((float) $item->unit_price, 1) }}</td>
                     <td class="num">{{ number_format((float) $item->line_total, 2) }}</td>
                 </tr>
             @endforeach
-            <tr class="total-line">
-                <td>#Pcs: {{ $qtyText }}</td>
-                <td class="num" colspan="2">Total</td>
-                <td class="num">{{ number_format((float) $sale->total, 2) }}</td>
-            </tr>
         </tbody>
     </table>
-    <table style="margin-top:8px;">
+    <table class="sum">
         <tr>
-            <td>Paymode</td>
-            <td></td>
-            <td class="num">Tendered</td>
+            <td>#Pcs: {{ $qtyText }}</td>
+            <td class="num">Total {{ number_format((float) $sale->total, 2) }}</td>
+        </tr>
+    </table>
+    <table class="pay" style="margin-top:8px;">
+        @if(count($usedMethods) === 1)
+            <tr>
+                <td>Paymode</td>
+                <td class="num">{{ $usedMethods[0]['label'] }}</td>
+            </tr>
+        @else
+            @foreach($usedMethods as $method)
+                <tr>
+                    <td>{{ $method['label'] }}</td>
+                    <td class="num">{{ number_format($method['amount'], 2) }}</td>
+                </tr>
+            @endforeach
+        @endif
+        <tr>
+            <td>Tendered</td>
             <td class="num">{{ number_format($tendered, 2) }}</td>
         </tr>
         <tr>
-            <td>Cash</td>
-            <td class="num">{{ number_format($byMethod['cash'], 2) }}</td>
-            <td class="num">Change</td>
+            <td>Change</td>
             <td class="num">{{ number_format($change, 2) }}</td>
-        </tr>
-        <tr>
-            <td>Mpesa</td>
-            <td class="num">{{ number_format($byMethod['mpesa'], 2) }}</td>
-            <td></td>
-            <td></td>
-        </tr>
-        <tr>
-            <td>Card</td>
-            <td class="num">{{ number_format($byMethod['card'], 2) }}</td>
-            <td></td>
-            <td></td>
         </tr>
     </table>
     @if($paybill !== '' || $accountNo !== '')

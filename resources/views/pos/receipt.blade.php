@@ -12,8 +12,15 @@
             background: #fff;
             color: #000;
             font-family: "Courier New", Courier, monospace;
-            font-size: {{ $paper === '58mm' ? '11px' : '12px' }};
+            font-size: {{ $paper === '58mm' ? '12px' : '13px' }};
+            font-weight: 700;
             line-height: 1.3;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .ticket, .ticket div, .ticket td, .ticket th, .ticket span {
+            color: #000;
+            font-weight: 700;
         }
         .ticket {
             width: {{ $paper === '58mm' ? '52mm' : '72mm' }};
@@ -22,18 +29,32 @@
         }
         .center { text-align: center; }
         .bold { font-weight: 700; }
-        .logo { display: block; max-width: 70%; max-height: 58px; margin: 0 auto 4px; }
+        .logo {
+            display: block;
+            max-width: 46mm;
+            max-height: 22mm;
+            margin: 0 auto 4px;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
         .company { font-size: {{ $paper === '58mm' ? '14px' : '16px' }}; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; }
         .location { font-size: 11px; font-weight: 700; text-transform: uppercase; margin-top: 2px; }
         .title { font-weight: 700; margin: 6px 0 4px; }
+        .meta { margin: 0 0 6px; }
+        .meta div { margin: 0; }
         table { width: 100%; border-collapse: collapse; }
         td, th { padding: 1px 0; vertical-align: top; }
-        .items th { font-size: 11px; border-bottom: 1px solid #000; }
+        .items { table-layout: fixed; }
+        .items .name { width: 40%; }
+        .items .qty { width: 14%; }
+        .items .price { width: 22%; }
+        .items .amount { width: 24%; }
+        .items th { font-size: 11px; border-bottom: 1px dotted #000; padding-bottom: 3px; }
         .num { text-align: right; white-space: nowrap; }
-        .name { text-transform: uppercase; }
-        .total-line { border-top: 1px solid #000; border-bottom: 3px double #000; font-weight: 700; }
+        .name { text-transform: uppercase; word-wrap: break-word; }
+        .sum { margin-top: 3px; border-top: 1px dotted #000; border-bottom: 1px dotted #000; }
+        .sum td { font-weight: 700; padding: 3px 0; }
         .pay td { padding-top: 2px; }
-        .gap { height: 8px; }
         .no-print { text-align: center; margin: 12px 0; }
         .no-print button {
             background: #c9a027;
@@ -45,6 +66,12 @@
         }
         @media print {
             .no-print { display: none; }
+            html, body, .ticket, .ticket div, .ticket td, .ticket th, .ticket span {
+                color: #000 !important;
+                font-weight: 700 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
         }
     </style>
 </head>
@@ -68,6 +95,24 @@
             $otherPayments[] = $payment;
         }
     }
+    $methodNames = ['cash' => 'Cash', 'mpesa' => 'Mpesa', 'card' => 'Card'];
+    $labels = $paymentLabels ?? config('sellix.payment_methods', []);
+    $usedMethods = [];
+    foreach ($byMethod as $method => $amount) {
+        if ($amount > 0.009) {
+            $usedMethods[] = ['label' => $methodNames[$method], 'amount' => $amount];
+        }
+    }
+    foreach ($otherPayments as $payment) {
+        $amount = (float) $payment->amount;
+        if ($amount <= 0.009) {
+            continue;
+        }
+        $usedMethods[] = [
+            'label' => $labels[$payment->method] ?? ucfirst((string) $payment->method),
+            'amount' => $amount,
+        ];
+    }
     $tendered = (float) $sale->payments->sum('amount');
     if ($tendered <= 0) {
         $tendered = (float) $sale->paid_amount;
@@ -80,10 +125,17 @@
     $cashier = strtoupper(optional($sale->cashier)->name ?: '');
     $paybill = trim((string) ($options['paybill'] ?? ''));
     $accountNo = trim((string) ($options['account_no'] ?? ''));
+    $pin = trim((string) ($profile['companyTaxPin'] ?? ''));
+    if (in_array($pin, ['', '-', '0'], true)) {
+        $pin = '';
+    }
+    $showPin = $show('show_pin') && $pin !== '';
+    $logoSrc = receipt_logo_src($profile);
+    $showLogo = $logoSrc !== '' && ($show('show_logo') || is_file((string) ($profile['logo_pdf_path'] ?? '')));
 @endphp
 <div class="ticket">
-    @if($show('show_logo') && ! empty($profile['logo_url']))
-        <img src="{{ $profile['logo_url'] }}" alt="" class="logo">
+    @if($showLogo)
+        <img src="{{ $logoSrc }}" alt="Logo" class="logo">
     @endif
     @if($show('show_name'))
         <div class="center company">{{ $profile['companyName'] ?? fleet_system_name() }}</div>
@@ -99,33 +151,28 @@
     @endif
     <div class="center title">{{ $options['heading'] ?? 'Original Cash Sale Receipt' }}</div>
 
-    <table>
-        <tr>
-            <td>Pin No:</td>
-            <td class="num">{{ $show('show_pin') ? ($profile['companyTaxPin'] ?? '') : '' }}</td>
-        </tr>
-        <tr>
-            <td>Rct No: {{ $number }}</td>
-            <td class="num">Date: {{ optional($sale->created_at)->format('d-M-Y H:i') }}</td>
-        </tr>
-        <tr>
-            <td colspan="2">Sold To : {{ $customerName }}</td>
-        </tr>
-    </table>
+    <div class="meta">
+        @if($showPin)
+            <div>Pin No: {{ $pin }}</div>
+        @endif
+        <div>Rct No: {{ $number }}</div>
+        <div>Date: {{ optional($sale->created_at)->format('d-M-Y H:i') }}</div>
+        <div>Sold To: {{ $customerName }}</div>
+    </div>
 
     <table class="items">
         <thead>
             <tr>
                 <th class="name">Product</th>
-                <th class="num">Qty</th>
-                <th class="num">Price</th>
-                <th class="num">Amount</th>
+                <th class="num qty">Qty</th>
+                <th class="num price">Price</th>
+                <th class="num amount">Amount</th>
             </tr>
         </thead>
         <tbody>
             @foreach($sale->items as $item)
                 @php
-                    $qty = number_format((float) $item->quantity, 1, '.', '');
+                    $qty = rtrim(rtrim(number_format((float) $item->quantity, 2, '.', ''), '0'), '.');
                 @endphp
                 <tr>
                     <td class="name">{{ $item->name }}</td>
@@ -134,15 +181,13 @@
                     <td class="num">{{ number_format((float) $item->line_total, 2) }}</td>
                 </tr>
             @endforeach
-            <tr>
-                <td colspan="4" class="gap"></td>
-            </tr>
-            <tr class="total-line">
-                <td>#Pcs: {{ $qtyText }}</td>
-                <td class="num" colspan="2">Total</td>
-                <td class="num">{{ number_format((float) $sale->total, 2) }}</td>
-            </tr>
         </tbody>
+    </table>
+    <table class="sum">
+        <tr>
+            <td>#Pcs: {{ $qtyText }}</td>
+            <td class="num">Total {{ number_format((float) $sale->total, 2) }}</td>
+        </tr>
     </table>
 
     @php
@@ -167,38 +212,27 @@
 
     <div style="height:8px;"></div>
     <table class="pay">
+        @if(count($usedMethods) === 1)
+            <tr>
+                <td>Paymode</td>
+                <td class="num">{{ $usedMethods[0]['label'] }}</td>
+            </tr>
+        @else
+            @foreach($usedMethods as $method)
+                <tr>
+                    <td>{{ $method['label'] }}</td>
+                    <td class="num">{{ number_format($method['amount'], 2) }}</td>
+                </tr>
+            @endforeach
+        @endif
         <tr>
-            <td>Paymode</td>
-            <td></td>
-            <td class="num">Tendered</td>
+            <td>Tendered</td>
             <td class="num">{{ number_format($tendered, 2) }}</td>
         </tr>
         <tr>
-            <td>Cash</td>
-            <td class="num">{{ number_format($byMethod['cash'], 2) }}</td>
-            <td class="num">Change</td>
+            <td>Change</td>
             <td class="num">{{ number_format($change, 2) }}</td>
         </tr>
-        <tr>
-            <td>Mpesa</td>
-            <td class="num">{{ number_format($byMethod['mpesa'], 2) }}</td>
-            <td></td>
-            <td></td>
-        </tr>
-        <tr>
-            <td>Card</td>
-            <td class="num">{{ number_format($byMethod['card'], 2) }}</td>
-            <td></td>
-            <td></td>
-        </tr>
-        @foreach($otherPayments as $payment)
-            <tr>
-                <td>{{ $paymentLabels[$payment->method] ?? ucfirst($payment->method) }}</td>
-                <td class="num">{{ number_format((float) $payment->amount, 2) }}</td>
-                <td></td>
-                <td></td>
-            </tr>
-        @endforeach
     </table>
 
     @if($paybill !== '' || $accountNo !== '')
@@ -226,7 +260,16 @@
 </div>
 <script>
     window.addEventListener('load', function () {
-        setTimeout(function () { window.print(); }, 250);
+        var logo = document.querySelector('.logo');
+        var printSlip = function () {
+            setTimeout(function () { window.print(); }, 200);
+        };
+        if (!logo || logo.complete) {
+            printSlip();
+            return;
+        }
+        logo.addEventListener('load', printSlip);
+        logo.addEventListener('error', printSlip);
     });
 </script>
 </body>

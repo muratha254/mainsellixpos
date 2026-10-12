@@ -302,6 +302,7 @@
                                 <label class="checkbox-inline"><input type="checkbox" name="remove_logo" value="1"> Remove logo</label>
                             @endif
                             <input type="file" name="logo" class="form-control" accept="image/*">
+                            <small class="text-muted">This logo prints at the top of the receipt. Set Display Logo to Yes.</small>
                         </div>
                         <div class="form-group">
                             <label>Receipt title</label>

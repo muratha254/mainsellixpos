@@ -144,4 +144,29 @@ class Sale extends Model
     {
         return round((float) $this->balance, 2);
     }
+
+    public function tenderByMethod(string $method): float
+    {
+        $payments = $this->relationLoaded('payments') ? $this->payments : $this->payments()->get();
+        $sum = function ($rows): float {
+            return round((float) $rows->sum(function ($payment) {
+                return (float) $payment->amount;
+            }), 2);
+        };
+
+        if ($method !== Payment::METHOD_CASH) {
+            return $sum($payments->where('method', $method));
+        }
+
+        $cash = $sum($payments->where('method', Payment::METHOD_CASH));
+        $nonCash = round($sum($payments) - $cash, 2);
+        $coveredByOthers = min($nonCash, (float) $this->total);
+        $change = $cash > 0 ? max(0, $cash - max(0, (float) $this->total - $coveredByOthers)) : 0;
+        $returns = $this->relationLoaded('returns') ? $this->returns : $this->returns()->get();
+        $refunded = round((float) $returns->where('refund_method', 'cash')->sum(function ($return) {
+            return (float) $return->refund_amount;
+        }), 2);
+
+        return round($cash - $change - $refunded, 2);
+    }
 }

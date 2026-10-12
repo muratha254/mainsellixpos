@@ -38,7 +38,7 @@ class SaleController extends Controller
         );
 
         $sales = Sale::query()
-            ->with(['customer', 'cashier', 'branch'])
+            ->with(['customer', 'cashier', 'branch', 'payments', 'returns'])
             ->whereNotIn('status', [Sale::STATUS_HELD, Sale::STATUS_DRAFT])
             ->when($from, function ($query) use ($from) {
                 $query->where('sale_date', '>=', $from);
@@ -63,6 +63,15 @@ class SaleController extends Controller
             'salesTotal' => (float) $countable->sum('total'),
             'salesPoints' => (float) $countable->sum('loyalty_discount'),
             'salesPaid' => (float) $countable->sum('paid_amount'),
+            'salesCash' => (float) $countable->sum(function (Sale $sale) {
+                return $sale->tenderByMethod(Payment::METHOD_CASH);
+            }),
+            'salesMpesa' => (float) $countable->sum(function (Sale $sale) {
+                return $sale->tenderByMethod(Payment::METHOD_MPESA);
+            }),
+            'salesCard' => (float) $countable->sum(function (Sale $sale) {
+                return $sale->tenderByMethod(Payment::METHOD_CARD);
+            }),
             'salesBalance' => (float) $countable->sum(function (Sale $sale) {
                 return $sale->remainingBalance();
             }),

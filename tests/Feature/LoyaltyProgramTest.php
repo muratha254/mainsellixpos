@@ -122,6 +122,10 @@ class LoyaltyProgramTest extends TestCase
         $this->actingAsAdmin()->get(route('sales.index'))
             ->assertOk()
             ->assertSee('Paid with points', false)
+            ->assertSee('>Cash<', false)
+            ->assertSee('M-Pesa', false)
+            ->assertSee('Card', false)
+            ->assertSee('Ksh 400.00', false)
             ->assertSee('100.00 pts', false)
             ->assertSee('Ksh 100.00 off', false);
     }

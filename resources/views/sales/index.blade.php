@@ -38,6 +38,21 @@
     <button type="submit" class="btn sx-btn-gold"><i class="fa fa-search"></i> Filter</button>
 </form>
 
+<div class="sx-pay-cards">
+    <div class="sx-pay-card cash">
+        <span>Cash</span>
+        <strong id="sl-head-cash">Ksh {{ number_format((float) $salesCash, 2) }}</strong>
+    </div>
+    <div class="sx-pay-card mpesa">
+        <span>M-Pesa</span>
+        <strong id="sl-head-mpesa">Ksh {{ number_format((float) $salesMpesa, 2) }}</strong>
+    </div>
+    <div class="sx-pay-card is-card">
+        <span>Card</span>
+        <strong id="sl-head-card">Ksh {{ number_format((float) $salesCard, 2) }}</strong>
+    </div>
+</div>
+
 <div class="sx-box sx-items-card">
     <div class="sx-items-toolbar">
         <h3 class="sx-box-title" style="flex:none;margin:0;"><i class="fa fa-list-alt"></i> Merged List</h3>
@@ -77,6 +92,9 @@
                         <th>Total</th>
                         <th>Points</th>
                         <th>Paid</th>
+                        <th>Cash</th>
+                        <th>M-Pesa</th>
+                        <th>Card</th>
                         <th>Balance</th>
                         <th>Pay Status</th>
                         <th>Customer</th>
@@ -95,6 +113,9 @@
                             ][$sale->payment_status] ?? 'sx-pay-unpaid';
                             $isFinal = $sale->status === \App\Models\Sale::STATUS_COMPLETED;
                             $isVoided = $sale->status === \App\Models\Sale::STATUS_VOIDED;
+                            $cashAmount = $sale->tenderByMethod('cash');
+                            $mpesaAmount = $sale->tenderByMethod('mpesa');
+                            $cardAmount = $sale->tenderByMethod('card');
                         @endphp
                         <tr class="{{ $isVoided ? 'sl-voided' : 'sl-countable' }}">
                             <td class="sx-check-col"><input type="checkbox" class="sl-row-check" value="{{ $sale->id }}"></td>
@@ -123,6 +144,9 @@
                                 @endif
                             </td>
                             <td data-order="{{ $sale->paid_amount }}">Ksh {{ number_format((float) $sale->paid_amount, 2) }}</td>
+                            <td data-order="{{ $cashAmount }}">Ksh {{ number_format($cashAmount, 2) }}</td>
+                            <td data-order="{{ $mpesaAmount }}">Ksh {{ number_format($mpesaAmount, 2) }}</td>
+                            <td data-order="{{ $cardAmount }}">Ksh {{ number_format($cardAmount, 2) }}</td>
                             <td data-order="{{ $sale->remainingBalance() }}">Ksh {{ number_format($sale->remainingBalance(), 2) }}</td>
                             <td><span class="sx-pay-badge {{ $payClass }}">{{ $sale->paymentStatusLabel() }}</span></td>
                             <td>{{ $sale->customerDisplayName() }}</td>
@@ -195,6 +219,9 @@
                         <th id="sl-foot-total">Ksh {{ number_format((float) $salesTotal, 2) }}</th>
                         <th id="sl-foot-points">Ksh {{ number_format((float) $salesPoints, 2) }}</th>
                         <th id="sl-foot-paid">Ksh {{ number_format((float) $salesPaid, 2) }}</th>
+                        <th id="sl-foot-cash">Ksh {{ number_format((float) $salesCash, 2) }}</th>
+                        <th id="sl-foot-mpesa">Ksh {{ number_format((float) $salesMpesa, 2) }}</th>
+                        <th id="sl-foot-card">Ksh {{ number_format((float) $salesCard, 2) }}</th>
                         <th id="sl-foot-balance">Ksh {{ number_format((float) $salesBalance, 2) }}</th>
                         <th colspan="5"></th>
                     </tr>
@@ -388,7 +415,7 @@
         order: [[2, 'desc']],
         autoWidth: false,
         columnDefs: [
-            { targets: [0, 1, 14], orderable: false, searchable: false }
+            { targets: [0, 1, 17], orderable: false, searchable: false }
         ],
         language: {
             lengthMenu: 'Show _MENU_ entries',
@@ -431,7 +458,10 @@
             var saleTotal = sumCol(6);
             var points = sumCol(7);
             var paid = sumCol(8);
-            var balance = sumCol(9);
+            var cash = sumCol(9);
+            var mpesa = sumCol(10);
+            var card = sumCol(11);
+            var balance = sumCol(12);
             var count = 0;
             api.rows({ search: 'applied' }).every(function () {
                 var row = this.node();
@@ -442,6 +472,9 @@
             $('#sl-foot-total, #sl-head-total').text(money(saleTotal));
             $('#sl-foot-points, #sl-head-points').text(money(points));
             $('#sl-foot-paid, #sl-head-paid').text(money(paid));
+            $('#sl-foot-cash, #sl-head-cash').text(money(cash));
+            $('#sl-foot-mpesa, #sl-head-mpesa').text(money(mpesa));
+            $('#sl-foot-card, #sl-head-card').text(money(card));
             $('#sl-foot-balance, #sl-head-balance').text(money(balance));
             $('#sl-head-count').text(count + (count === 1 ? ' sale' : ' sales'));
         }

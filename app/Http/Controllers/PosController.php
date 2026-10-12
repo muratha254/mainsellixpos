@@ -437,7 +437,7 @@ class PosController extends Controller
             'items.*.quantity' => 'required|numeric|min:0.0001',
             'items.*.apply_tax' => 'nullable',
             'items.*.unit_price' => 'nullable|numeric|min:0',
-            'items.*.price_type' => 'nullable|in:R,W',
+            'items.*.price_type' => 'nullable|in:R,W,P',
         ]);
     }
 
@@ -475,11 +475,17 @@ class PosController extends Controller
 
             return $posted;
         }
+        $conversion = app(UnitConversionService::class);
         if (($row['price_type'] ?? 'R') === 'W') {
-            $conversion = app(UnitConversionService::class);
             $wholesale = $conversion->wholesaleForFactor($product, $unit['factor'] ?? 1);
             if ($wholesale > 0) {
                 return $wholesale;
+            }
+        }
+        if (($row['price_type'] ?? 'R') === 'P') {
+            $promo = $conversion->promoForFactor($product, $unit['factor'] ?? 1);
+            if ($promo > 0) {
+                return $promo;
             }
         }
 
@@ -791,6 +797,8 @@ class PosController extends Controller
             'name' => optional($product->unit)->name ?: 'Unit',
             'factor' => 1.0,
             'selling_price' => (float) $product->selling_price,
+            'wholesale_price' => (float) $product->wholesale_price,
+            'promo_price' => (float) $product->promo_price,
             'barcode' => $product->barcode,
             'is_default' => true,
         ]];
@@ -823,6 +831,7 @@ class PosController extends Controller
             'barcode' => $product->barcode,
             'selling_price' => $selling,
             'wholesale_price' => (float) ($unit['wholesale_price'] ?? $product->wholesale_price),
+            'promo_price' => (float) ($unit['promo_price'] ?? $product->promo_price),
             'price' => $price,
             'tax_rate' => $rate,
             'tax_amount' => $taxAmount,

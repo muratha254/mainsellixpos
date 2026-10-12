@@ -338,10 +338,19 @@
         return $('<div>').text(v == null ? '' : v).html();
     }
 
+    function amount(value) {
+        var n = parseFloat(value);
+        return isNaN(n) ? 0 : n;
+    }
     function linePrice(row) {
-        var inc = row.price;
-        if (row.type === 'W' && row.wholesale_price > 0) {
-            inc = row.tax_inclusive ? row.wholesale_price : row.wholesale_price * (1 + (row.tax_rate || 0) / 100);
+        var inc = amount(row.price);
+        var rate = amount(row.tax_rate);
+        if (row.type === 'W' && amount(row.wholesale_price) > 0) {
+            var wholesale = amount(row.wholesale_price);
+            inc = row.tax_inclusive ? wholesale : wholesale * (1 + rate / 100);
+        } else if (row.type === 'P' && amount(row.promo_price) > 0) {
+            var promo = amount(row.promo_price);
+            inc = row.tax_inclusive ? promo : promo * (1 + rate / 100);
         }
         return inc;
     }
@@ -384,7 +393,11 @@
             html += '<input type="text" class="pos-serial" data-i="' + i + '" placeholder="Enter Serial/Key/Unit" value="' + escapeHtml(row.serial || '') + '">';
             html += '</td>';
             html += '<td>' + money(price) + '</td>';
-            html += '<td><select class="pos-type" data-i="' + i + '"><option value="R"' + (row.type === 'R' ? ' selected' : '') + '>R</option><option value="W"' + (row.type === 'W' ? ' selected' : '') + '>W</option></select></td>';
+            html += '<td><select class="pos-type" data-i="' + i + '" title="R retail, W wholesale, P promo">';
+            html += '<option value="R"' + (row.type === 'R' ? ' selected' : '') + '>R</option>';
+            html += '<option value="W"' + (row.type === 'W' ? ' selected' : '') + '>W</option>';
+            html += '<option value="P"' + (row.type === 'P' ? ' selected' : '') + '>P</option>';
+            html += '</select></td>';
             html += '<td>' + money(price * row.quantity) + '</td>';
             html += '<td class="pos-tax-cell"><input type="checkbox" class="pos-tax" data-i="' + i + '"' + (row.apply_tax ? ' checked' : '') + '></td>';
             html += '<td><button type="button" class="pos-remove" data-i="' + i + '" title="Remove"><i class="fa fa-trash-o"></i></button></td>';
@@ -443,7 +456,8 @@
                 unit_name: unit.name || '',
                 name: item.name,
                 price: price,
-                wholesale_price: unit.wholesale_price != null ? unit.wholesale_price : (item.wholesale_price || 0),
+                wholesale_price: amount(unit.wholesale_price) || amount(item.wholesale_price),
+                promo_price: amount(unit.promo_price) || amount(item.promo_price),
                 tax_inclusive: inclusive,
                 tax_rate: rate,
                 tax_amount: taxAmount,
@@ -1237,6 +1251,7 @@
                     name: item.name,
                     price: item.price,
                     wholesale_price: item.wholesale_price || 0,
+                    promo_price: item.promo_price || 0,
                     tax_inclusive: !!item.tax_inclusive,
                     tax_rate: item.tax_rate || 0,
                     tax_amount: item.tax_amount || 0,

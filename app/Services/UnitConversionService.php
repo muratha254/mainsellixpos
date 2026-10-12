@@ -114,6 +114,28 @@ class UnitConversionService
         return round($this->wholesalePerBase($product) * $factor, 4);
     }
 
+    public function promoPerBase(Product $product): float
+    {
+        $factor = $this->purchaseFactor($product);
+        $pack = (float) $product->promo_price;
+        if ($factor == 1.0) {
+            return round($pack, 4);
+        }
+
+        return round($pack / $factor, 4);
+    }
+
+    public function promoForFactor(Product $product, $factorToBase): float
+    {
+        $factor = $this->positiveFactor($factorToBase);
+        $packFactor = $this->purchaseFactor($product);
+        if ($this->hasPackaging($product) && abs($factor - $packFactor) < 0.0000001) {
+            return round((float) $product->promo_price, 4);
+        }
+
+        return round($this->promoPerBase($product) * $factor, 4);
+    }
+
     public function packSellingPrice(Product $product): float
     {
         return round((float) $product->selling_price, 4);
@@ -250,6 +272,7 @@ class UnitConversionService
                 'factor' => $this->purchaseFactor($product),
                 'selling_price' => $this->packSellingPrice($product),
                 'wholesale_price' => round((float) $product->wholesale_price, 4),
+                'promo_price' => round((float) $product->promo_price, 4),
                 'barcode' => $product->barcode,
                 'is_default' => true,
             ];
@@ -260,6 +283,7 @@ class UnitConversionService
                 'factor' => 1.0,
                 'selling_price' => $this->pricePerBase($product),
                 'wholesale_price' => $this->wholesalePerBase($product),
+                'promo_price' => $this->promoPerBase($product),
                 'barcode' => null,
                 'is_default' => false,
             ];
@@ -271,6 +295,7 @@ class UnitConversionService
                 'factor' => 1.0,
                 'selling_price' => (float) $product->selling_price,
                 'wholesale_price' => round((float) $product->wholesale_price, 4),
+                'promo_price' => round((float) $product->promo_price, 4),
                 'barcode' => $product->barcode,
                 'is_default' => true,
             ];
@@ -300,6 +325,7 @@ class UnitConversionService
                 'factor' => $factor,
                 'selling_price' => $this->sellingPrice($product, $unit),
                 'wholesale_price' => $this->wholesaleForFactor($product, $factor),
+                'promo_price' => $this->promoForFactor($product, $factor),
                 'barcode' => $unit->barcode,
                 'is_default' => false,
             ];

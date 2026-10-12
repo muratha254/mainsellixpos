@@ -79,6 +79,7 @@ class UnitConversionServiceTest extends TestCase
         $product = new Product([
             'selling_price' => 4500,
             'wholesale_price' => 3600,
+            'promo_price' => 900,
             'purchase_to_base' => 90,
             'purchase_unit_id' => 2,
             'unit_id' => 1,
@@ -86,6 +87,8 @@ class UnitConversionServiceTest extends TestCase
         ]);
         $this->assertEquals(50.0, $svc->pricePerBase($product));
         $this->assertEquals(40.0, $svc->wholesalePerBase($product));
+        $this->assertEquals(10.0, $svc->promoPerBase($product));
+        $this->assertEquals(900.0, $svc->promoForFactor($product, 90));
         $this->assertEquals(50.0, $svc->pricePerBase($product) * 1);
         $this->assertEquals(1000.0, round($svc->pricePerBase($product) * 20, 2));
         $this->assertEquals(25.0, round($svc->pricePerBase($product) * 0.5, 2));

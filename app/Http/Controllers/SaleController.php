@@ -644,6 +644,7 @@ class SaleController extends Controller
         $pdf = PDF::loadView('sales.pos-pdf', array_merge(fleet_shared_view_data(), [
             'sale' => $sale,
             'profile' => fleet_company_profile(),
+            'receipt' => receipt_print_options((int) $sale->company_id),
             'paymentLabels' => config('sellix.payment_methods', []),
         ]))->setPaper([0, 0, 255.12, 841.89], 'portrait');
 

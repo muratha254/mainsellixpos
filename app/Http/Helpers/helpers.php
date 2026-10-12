@@ -31,6 +31,33 @@ function fleet_document_profile(string $type): array
     ]);
 }
 
+function receipt_print_options(int $companyId): array
+{
+    $settings = app(\App\Services\SettingsService::class);
+    $yes = function (string $key, string $default = 'No') use ($settings, $companyId): bool {
+        return (string) $settings->get($companyId, $key, $default) === 'Yes';
+    };
+    $paybill = trim((string) $settings->get($companyId, 'till_paybill', ''));
+    if ($paybill === '0') {
+        $paybill = '';
+    }
+
+    return [
+        'show_logo' => $yes('display_logo'),
+        'show_name' => $yes('display_name', 'Yes'),
+        'show_address' => $yes('display_address', 'Yes'),
+        'show_phone' => $yes('display_phone'),
+        'show_email' => $yes('display_email'),
+        'show_pin' => $yes('display_vat_kra', 'Yes'),
+        'heading' => trim((string) $settings->get($companyId, 'receipt_heading', 'Original Cash Sale Receipt')) ?: 'Original Cash Sale Receipt',
+        'confirm_note' => trim((string) $settings->get($companyId, 'receipt_confirm_note', 'PLEASE CONFIRM YOUR GOODS AND CHANGE')),
+        'vat_note' => trim((string) $settings->get($companyId, 'receipt_vat_note', 'All Prices are VAT inclusive')),
+        'footer' => trim((string) $settings->get($companyId, 'receipt_footer', 'Thank You')) ?: 'Thank You',
+        'paybill' => $paybill,
+        'account_no' => trim((string) $settings->get($companyId, 'till_account_no', '')),
+    ];
+}
+
 function fleet_company_profile(): array
 {
     try {

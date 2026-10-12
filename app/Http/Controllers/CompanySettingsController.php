@@ -195,7 +195,13 @@ class CompanySettingsController extends Controller
         $tab = $request->input('tab', 'basic');
 
         if ($tab === 'receipt') {
-            $settings->setMany($company->id, $request->validate([
+            $data = $request->validate([
+                'name' => 'required|string|max:255',
+                'phone' => 'required|string|max:50',
+                'tax_pin' => 'nullable|string|max:100',
+                'address' => 'required|string|max:2000',
+                'logo' => 'nullable|image|max:2048',
+                'remove_logo' => 'nullable|boolean',
                 'receipt_control' => 'required|string|max:64',
                 'choose_print' => 'required|string|max:64',
                 'captain_category' => 'required|string|max:64',
@@ -210,11 +216,60 @@ class CompanySettingsController extends Controller
                 'display_tax_calc' => 'required|in:Yes,No',
                 'display_prev_bal' => 'required|in:Yes,No',
                 'display_standing_bal' => 'required|in:Yes,No',
+                'receipt_heading' => 'nullable|string|max:120',
+                'receipt_confirm_note' => 'nullable|string|max:200',
+                'receipt_vat_note' => 'nullable|string|max:200',
                 'receipt_footer' => 'nullable|string|max:500',
                 'thermal_receipt_style' => 'nullable|string|max:40',
                 'thermal_font_size' => 'nullable|string|max:20',
                 'thermal_font_family' => 'nullable|string|max:40',
-            ]), 'receipt');
+                'till_paybill' => 'nullable|string|max:64',
+                'till_account_no' => 'nullable|string|max:64',
+            ]);
+
+            if ($request->boolean('remove_logo') && $company->logo_path) {
+                Storage::disk('public')->delete($company->logo_path);
+                $company->logo_path = null;
+            }
+            if ($request->hasFile('logo')) {
+                if ($company->logo_path) {
+                    Storage::disk('public')->delete($company->logo_path);
+                }
+                $company->logo_path = $request->file('logo')->store('company-logos', 'public');
+            }
+            $company->fill([
+                'name' => $data['name'],
+                'phone' => $data['phone'],
+                'tax_pin' => $data['tax_pin'] ?? null,
+                'address' => $data['address'],
+                'slug' => Str::slug($data['name']) ?: $company->slug,
+            ])->save();
+
+            $settings->setMany($company->id, [
+                'receipt_control' => $data['receipt_control'],
+                'choose_print' => $data['choose_print'],
+                'captain_category' => $data['captain_category'],
+                'display_logo' => $data['display_logo'],
+                'display_name' => $data['display_name'],
+                'display_address' => $data['display_address'],
+                'display_phone' => $data['display_phone'],
+                'display_postcode' => $data['display_postcode'],
+                'display_email' => $data['display_email'],
+                'printer_type' => $data['printer_type'],
+                'display_vat_kra' => $data['display_vat_kra'],
+                'display_tax_calc' => $data['display_tax_calc'],
+                'display_prev_bal' => $data['display_prev_bal'],
+                'display_standing_bal' => $data['display_standing_bal'],
+                'receipt_heading' => $data['receipt_heading'] ?? '',
+                'receipt_confirm_note' => $data['receipt_confirm_note'] ?? '',
+                'receipt_vat_note' => $data['receipt_vat_note'] ?? '',
+                'receipt_footer' => $data['receipt_footer'] ?? '',
+                'thermal_receipt_style' => $data['thermal_receipt_style'] ?? '',
+                'thermal_font_size' => $data['thermal_font_size'] ?? '',
+                'thermal_font_family' => $data['thermal_font_family'] ?? '',
+                'till_paybill' => $data['till_paybill'] ?? '',
+                'till_account_no' => $data['till_account_no'] ?? '',
+            ], 'receipt');
 
             return redirect()->route('settings.company', ['tab' => 'receipt'])->with('success', 'Receipt settings saved.');
         }
@@ -391,7 +446,10 @@ class CompanySettingsController extends Controller
             'display_tax_calc' => 'No',
             'display_prev_bal' => 'No',
             'display_standing_bal' => 'Yes',
-            'receipt_footer' => '~~Thank You.....Come Again.~~',
+            'receipt_heading' => 'Original Cash Sale Receipt',
+            'receipt_confirm_note' => 'PLEASE CONFIRM YOUR GOODS AND CHANGE',
+            'receipt_vat_note' => 'All Prices are VAT inclusive',
+            'receipt_footer' => 'Thank You',
             'thermal_receipt_style' => 'dashed',
             'thermal_font_size' => '10px',
             'thermal_font_family' => 'Tahoma',

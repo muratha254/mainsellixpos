@@ -344,6 +344,42 @@ class LoyaltyProgramTest extends TestCase
         $this->assertEquals(50.0, $rules['max_redeem']);
     }
 
+    public function test_receipt_prints_the_shop_details_from_receipt_settings(): void
+    {
+        $this->company->update([
+            'name' => 'Skyblue Cosmetics',
+            'address' => 'Shop No. 3, Posta, Ruiru',
+            'phone' => '0740421824',
+            'tax_pin' => 'P051234567X',
+        ]);
+        $settings = app(SettingsService::class);
+        $settings->set($this->company->id, 'display_name', 'Yes', 'receipt');
+        $settings->set($this->company->id, 'display_address', 'Yes', 'receipt');
+        $settings->set($this->company->id, 'display_phone', 'Yes', 'receipt');
+        $settings->set($this->company->id, 'display_vat_kra', 'Yes', 'receipt');
+        $settings->set($this->company->id, 'receipt_heading', 'Original Cash Sale Receipt', 'receipt');
+        $settings->set($this->company->id, 'till_paybill', '542542', 'receipt');
+        $settings->set($this->company->id, 'till_account_no', '202331', 'receipt');
+
+        $customer = $this->namedCustomer(0);
+        $response = $this->actingAsAdmin()->postJson(route('pos.order'), $this->salePayload($customer->id, 1, 100));
+        $response->assertOk();
+
+        $this->actingAsAdmin()->get(route('pos.receipt', $response->json('id')))
+            ->assertOk()
+            ->assertSee('Skyblue Cosmetics', false)
+            ->assertSee('Shop No. 3, Posta, Ruiru', false)
+            ->assertSee('TEL: 0740421824', false)
+            ->assertSee('Original Cash Sale Receipt', false)
+            ->assertSee('Pin No:', false)
+            ->assertSee('P051234567X', false)
+            ->assertSee('Rct No:', false)
+            ->assertSee('Sold To', false)
+            ->assertSee('PAYBILL NO. 542542', false)
+            ->assertSee('ACCOUNT NO. 202331', false)
+            ->assertSee('#Pcs:', false);
+    }
+
     private function namedCustomer(float $points): Customer
     {
         return Customer::query()->create([

@@ -4,10 +4,7 @@
     <meta charset="utf-8">
     <title>Receipt {{ $sale->receipt_number ?: $sale->invoice_number ?: $sale->number }}</title>
     <style>
-        @page {
-            size: {{ $paper }} auto;
-            margin: 3mm;
-        }
+        @page { size: {{ $paper }} auto; margin: 3mm; }
         * { box-sizing: border-box; }
         html, body {
             margin: 0;
@@ -16,37 +13,27 @@
             color: #000;
             font-family: "Courier New", Courier, monospace;
             font-size: {{ $paper === '58mm' ? '11px' : '12px' }};
-            line-height: 1.35;
+            line-height: 1.3;
         }
         .ticket {
             width: {{ $paper === '58mm' ? '52mm' : '72mm' }};
             margin: 0 auto;
-            padding: 4px 0 10px;
+            padding: 2px 0 8px;
         }
         .center { text-align: center; }
         .bold { font-weight: 700; }
-        .company { font-size: {{ $paper === '58mm' ? '13px' : '15px' }}; font-weight: 700; text-transform: uppercase; }
-        .muted { font-size: 11px; }
-        .rule { border-top: 1px dashed #000; margin: 6px 0; }
-        .rule-solid { border-top: 1px solid #000; margin: 6px 0; }
-        .row { display: flex; justify-content: space-between; gap: 8px; }
-        .meta { margin: 4px 0; }
-        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-        col.left { width: 58%; }
-        col.total { width: 42%; }
-        th, td { padding: 3px 2px; vertical-align: top; }
-        th { font-size: 10px; text-transform: uppercase; border-bottom: 1px dashed #000; }
-        .left { text-align: left; white-space: nowrap; }
-        .total { text-align: right; white-space: nowrap; }
-        .item-name {
-            text-transform: uppercase;
-            word-wrap: break-word;
-            overflow-wrap: anywhere;
-            word-break: break-word;
-            white-space: normal;
-        }
-        .totals .row { margin: 2px 0; }
-        .totals .label { text-align: right; flex: 1; padding-right: 8px; }
+        .logo { display: block; max-width: 70%; max-height: 58px; margin: 0 auto 4px; }
+        .company { font-size: {{ $paper === '58mm' ? '14px' : '16px' }}; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; }
+        .location { font-size: 11px; font-weight: 700; text-transform: uppercase; margin-top: 2px; }
+        .title { font-weight: 700; margin: 6px 0 4px; }
+        table { width: 100%; border-collapse: collapse; }
+        td, th { padding: 1px 0; vertical-align: top; }
+        .items th { font-size: 11px; border-bottom: 1px solid #000; }
+        .num { text-align: right; white-space: nowrap; }
+        .name { text-transform: uppercase; }
+        .total-line { border-top: 1px solid #000; border-bottom: 3px double #000; font-weight: 700; }
+        .pay td { padding-top: 2px; }
+        .gap { height: 8px; }
         .no-print { text-align: center; margin: 12px 0; }
         .no-print button {
             background: #c9a027;
@@ -58,113 +45,181 @@
         }
         @media print {
             .no-print { display: none; }
-            body { background: #fff; }
         }
     </style>
 </head>
 <body>
 @php
+    $options = $receipt ?? [];
+    $show = function (string $key) use ($options) {
+        return ! empty($options[$key]);
+    };
     $number = $sale->receipt_number ?: $sale->invoice_number ?: $sale->number;
-    $title = $sale->document_type === 'invoice' ? 'ORIGINAL INVOICE' : 'ORIGINAL RECEIPT';
-    $customer = optional($sale->customer)->is_walk_in ? 'WALK IN' : (optional($sale->customer)->name ?: 'WALK IN');
-    $received = (float) $sale->payments->sum('amount');
-    if ($received <= 0) {
-        $received = (float) $sale->paid_amount;
+    $customerName = optional($sale->customer)->is_walk_in ? '' : trim((string) optional($sale->customer)->name);
+    $pieces = (float) $sale->items->sum('quantity');
+    $qtyText = abs($pieces - round($pieces)) < 0.001 ? number_format($pieces, 0) : number_format($pieces, 1);
+    $byMethod = ['cash' => 0.0, 'mpesa' => 0.0, 'card' => 0.0];
+    $otherPayments = [];
+    foreach ($sale->payments as $payment) {
+        $method = (string) $payment->method;
+        if (array_key_exists($method, $byMethod)) {
+            $byMethod[$method] += (float) $payment->amount;
+        } else {
+            $otherPayments[] = $payment;
+        }
     }
-    $cashReceived = (float) $sale->payments->where('method', 'cash')->sum('amount');
-    $nonCashReceived = (float) $sale->payments->filter(function ($payment) {
-        return $payment->method !== 'cash';
-    })->sum('amount');
-    $dueAfterNonCash = max(0, (float) $sale->total - min($nonCashReceived, (float) $sale->total));
-    $change = max(0, $cashReceived - $dueAfterNonCash);
-    if ($cashReceived <= 0) {
-        $change = max(0, $received - (float) $sale->total);
+    $tendered = (float) $sale->payments->sum('amount');
+    if ($tendered <= 0) {
+        $tendered = (float) $sale->paid_amount;
     }
-    $website = $profile['companyWebsite'] ?? '';
+    $nonCash = $tendered - $byMethod['cash'];
+    $dueAfterNonCash = max(0, (float) $sale->total - min($nonCash, (float) $sale->total));
+    $change = $byMethod['cash'] > 0
+        ? max(0, $byMethod['cash'] - $dueAfterNonCash)
+        : max(0, $tendered - (float) $sale->total);
+    $cashier = strtoupper(optional($sale->cashier)->name ?: '');
+    $paybill = trim((string) ($options['paybill'] ?? ''));
+    $accountNo = trim((string) ($options['account_no'] ?? ''));
 @endphp
 <div class="ticket">
-    <div class="center company">{{ $profile['companyName'] ?? fleet_system_name() }}</div>
-    @if(!empty($profile['companyAddress']) && $profile['companyAddress'] !== '-')
-        <div class="center muted">{{ $profile['companyAddress'] }}</div>
+    @if($show('show_logo') && ! empty($profile['logo_url']))
+        <img src="{{ $profile['logo_url'] }}" alt="" class="logo">
     @endif
-    @if(!empty($profile['companyTaxPin']))
-        <div class="center muted">VAT #: {{ $profile['companyTaxPin'] }}</div>
+    @if($show('show_name'))
+        <div class="center company">{{ $profile['companyName'] ?? fleet_system_name() }}</div>
     @endif
-    <div class="rule"></div>
-    <div class="center bold">{{ $title }}</div>
-    <div class="rule"></div>
-    <div class="meta row"><span>Invoice No:</span><span>{{ $number }}</span></div>
-    <div class="meta row"><span>Customer:</span><span>{{ $customer }}</span></div>
-    <div class="meta row"><span>Date:</span><span>{{ optional($sale->created_at)->format('d-m-Y H:i:s') }}</span></div>
-    <div class="rule-solid"></div>
+    @if($show('show_address') && ! empty($profile['companyAddress']) && $profile['companyAddress'] !== '-')
+        <div class="center location">{{ $profile['companyAddress'] }}</div>
+    @endif
+    @if($show('show_phone') && ! empty($profile['companyPhone']) && $profile['companyPhone'] !== '-')
+        <div class="center bold">TEL: {{ $profile['companyPhone'] }}</div>
+    @endif
+    @if($show('show_email') && ! empty($profile['companyEmail']) && $profile['companyEmail'] !== '-')
+        <div class="center">{{ $profile['companyEmail'] }}</div>
+    @endif
+    <div class="center title">{{ $options['heading'] ?? 'Original Cash Sale Receipt' }}</div>
+
     <table>
-        <colgroup>
-            <col class="left">
-            <col class="total">
-        </colgroup>
+        <tr>
+            <td>Pin No:</td>
+            <td class="num">{{ $show('show_pin') ? ($profile['companyTaxPin'] ?? '') : '' }}</td>
+        </tr>
+        <tr>
+            <td>Rct No: {{ $number }}</td>
+            <td class="num">Date: {{ optional($sale->created_at)->format('d-M-Y H:i') }}</td>
+        </tr>
+        <tr>
+            <td colspan="2">Sold To : {{ $customerName }}</td>
+        </tr>
+    </table>
+
+    <table class="items">
         <thead>
             <tr>
-                <th colspan="2">Particulars</th>
-            </tr>
-            <tr>
-                <th class="left">Qty x Price</th>
-                <th class="total">Total</th>
+                <th class="name">Product</th>
+                <th class="num">Qty</th>
+                <th class="num">Price</th>
+                <th class="num">Amount</th>
             </tr>
         </thead>
         <tbody>
             @foreach($sale->items as $item)
                 @php
-                    $qty = rtrim(rtrim(number_format((float) $item->quantity, 4, '.', ''), '0'), '.');
-                    $unitLabel = trim((string) $item->unit_name);
-                    $unit = (float) $item->quantity > 0 ? (float) $item->line_total / (float) $item->quantity : (float) $item->unit_price;
+                    $qty = number_format((float) $item->quantity, 1, '.', '');
                 @endphp
                 <tr>
-                    <td colspan="2" class="item-name">{{ $item->name }}</td>
-                </tr>
-                <tr>
-                    <td class="left">{{ $qty }}{{ $unitLabel !== '' ? ' ' . $unitLabel : '' }} x {{ number_format($unit, 2) }}</td>
-                    <td class="total">{{ number_format((float) $item->line_total, 2) }}</td>
+                    <td class="name">{{ $item->name }}</td>
+                    <td class="num">{{ $qty }}</td>
+                    <td class="num">{{ number_format((float) $item->unit_price, 1) }}</td>
+                    <td class="num">{{ number_format((float) $item->line_total, 2) }}</td>
                 </tr>
             @endforeach
+            <tr>
+                <td colspan="4" class="gap"></td>
+            </tr>
+            <tr class="total-line">
+                <td>#Pcs: {{ $qtyText }}</td>
+                <td class="num" colspan="2">Total</td>
+                <td class="num">{{ number_format((float) $sale->total, 2) }}</td>
+            </tr>
         </tbody>
     </table>
-    <div class="rule"></div>
-    <div class="totals">
-        <div class="row"><span class="label">SUB TOTAL</span><span>Ksh {{ number_format((float) $sale->subtotal, 2) }}</span></div>
-        @if((float) $sale->discount_amount > 0)
-            <div class="row"><span class="label">DISCOUNT</span><span>Ksh {{ number_format((float) $sale->discount_amount, 2) }}</span></div>
-        @endif
-        @if((float) $sale->tax_amount > 0)
-            <div class="row"><span class="label">TAX</span><span>Ksh {{ number_format((float) $sale->tax_amount, 2) }}</span></div>
-        @endif
-        <div class="row bold"><span class="label">TOTAL</span><span>Ksh {{ number_format((float) $sale->total, 2) }}</span></div>
-        @forelse($sale->payments as $payment)
-            <div class="row">
-                <span class="label">{{ $paymentLabels[$payment->method] ?? ucfirst($payment->method) }}{{ $payment->reference ? ' '.$payment->reference : '' }}:</span>
-                <span>Ksh {{ number_format((float) $payment->amount, 2) }}</span>
-            </div>
-        @empty
-            @if((float) $sale->paid_amount > 0)
-                <div class="row"><span class="label">Paid:</span><span>Ksh {{ number_format((float) $sale->paid_amount, 2) }}</span></div>
-            @else
-                <div class="row"><span class="label">Paid:</span><span>Ksh 0.00</span></div>
+
+    @php
+        $cashierDiscount = max(0, (float) $sale->discount_amount - (float) $sale->loyalty_discount);
+    @endphp
+    @if($cashierDiscount > 0.009 || (float) $sale->loyalty_discount > 0.009)
+        <table>
+            @if($cashierDiscount > 0.009)
+                <tr>
+                    <td>Discount</td>
+                    <td class="num">{{ number_format($cashierDiscount, 2) }}</td>
+                </tr>
             @endif
-        @endforelse
-        @php $balanceDue = max(0, (float) $sale->total - (float) $sale->paid_amount); @endphp
-        @if($balanceDue > 0.009)
-            <div class="row bold"><span class="label">BALANCE DUE</span><span>Ksh {{ number_format($balanceDue, 2) }}</span></div>
-            <div class="center muted" style="margin-top:4px;">ON CREDIT</div>
-        @endif
-        @if($change > 0)
-            <div class="row"><span class="label">CHANGE</span><span>Ksh {{ number_format($change, 2) }}</span></div>
-        @endif
-    </div>
-    <div class="rule"></div>
-    <div class="center">SERVED BY: {{ strtoupper(optional($sale->cashier)->name ?: 'CASHIER') }}</div>
-    <div class="center muted" style="margin-top:8px;">Thank You...Come Again</div>
-    @if($website)
-        <div class="center muted">{{ $website }}</div>
+            @if((float) $sale->loyalty_discount > 0.009)
+                <tr>
+                    <td>Points</td>
+                    <td class="num">{{ number_format((float) $sale->loyalty_points_redeemed, 2) }} pts · {{ number_format((float) $sale->loyalty_discount, 2) }}</td>
+                </tr>
+            @endif
+        </table>
     @endif
+
+    <div style="height:8px;"></div>
+    <table class="pay">
+        <tr>
+            <td>Paymode</td>
+            <td></td>
+            <td class="num">Tendered</td>
+            <td class="num">{{ number_format($tendered, 2) }}</td>
+        </tr>
+        <tr>
+            <td>Cash</td>
+            <td class="num">{{ number_format($byMethod['cash'], 2) }}</td>
+            <td class="num">Change</td>
+            <td class="num">{{ number_format($change, 2) }}</td>
+        </tr>
+        <tr>
+            <td>Mpesa</td>
+            <td class="num">{{ number_format($byMethod['mpesa'], 2) }}</td>
+            <td></td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>Card</td>
+            <td class="num">{{ number_format($byMethod['card'], 2) }}</td>
+            <td></td>
+            <td></td>
+        </tr>
+        @foreach($otherPayments as $payment)
+            <tr>
+                <td>{{ $paymentLabels[$payment->method] ?? ucfirst($payment->method) }}</td>
+                <td class="num">{{ number_format((float) $payment->amount, 2) }}</td>
+                <td></td>
+                <td></td>
+            </tr>
+        @endforeach
+    </table>
+
+    @if($paybill !== '' || $accountNo !== '')
+        <div class="center bold" style="margin-top:8px;">
+            @if($paybill !== '')PAYBILL NO. {{ $paybill }}@endif
+            @if($accountNo !== '') ACCOUNT NO. {{ $accountNo }}@endif
+        </div>
+    @endif
+    @if($cashier !== '')
+        <div class="center" style="margin-top:6px;">You were served by: {{ $cashier }}</div>
+    @endif
+    @if(! empty($options['confirm_note']))
+        <div class="center bold" style="margin-top:8px;">{{ $options['confirm_note'] }}</div>
+    @endif
+    @if(! empty($options['vat_note']))
+        <div class="center" style="margin-top:8px;">{{ $options['vat_note'] }}</div>
+    @endif
+    @if(! empty($options['footer']))
+        <div class="center bold" style="margin-top:4px;">{{ $options['footer'] }}</div>
+    @endif
+
     <div class="no-print">
         <button type="button" onclick="window.print()">Print Receipt</button>
     </div>

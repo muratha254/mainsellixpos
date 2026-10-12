@@ -267,10 +267,70 @@
                 @endif
             </form>
         @elseif($tab === 'receipt')
-            <form method="post" action="{{ route('settings.company.update') }}" class="sx-item-form">
+            <form method="post" action="{{ route('settings.company.update') }}" class="sx-item-form" enctype="multipart/form-data">
                 @csrf
                 @method('PUT')
                 <input type="hidden" name="tab" value="receipt">
+                <h4 style="margin-top:0;">Printed on the receipt</h4>
+                <p class="text-muted">These details print in the receipt header, in the same order as a cash-sale slip: logo, business name, location, telephone, then the title.</p>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Business name <span class="sx-req">*</span></label>
+                            <input type="text" name="name" class="form-control" value="{{ old('name', $company->name) }}" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Location <span class="sx-req">*</span></label>
+                            <textarea name="address" class="form-control" rows="3" required>{{ old('address', $company->address) }}</textarea>
+                            <small class="text-muted">Shop number, street, and area. Example: SHOP NO. 3, POSTA, RUIRU STAGE BEHIND POWERSTAR JAMBO</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Telephone <span class="sx-req">*</span></label>
+                            <input type="text" name="phone" class="form-control" value="{{ old('phone', $company->phone) }}" required>
+                        </div>
+                        <div class="form-group">
+                            <label>KRA PIN</label>
+                            <input type="text" name="tax_pin" class="form-control" value="{{ old('tax_pin', $company->tax_pin) }}">
+                            <small class="text-muted">Prints as Pin No. Leave blank if you do not want a PIN on the slip.</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Logo</label>
+                            @if($company->logo_path)
+                                <div style="margin-bottom:8px;"><img src="{{ asset('storage/' . $company->logo_path) }}" alt="Logo" style="max-height:70px;"></div>
+                                <label class="checkbox-inline"><input type="checkbox" name="remove_logo" value="1"> Remove logo</label>
+                            @endif
+                            <input type="file" name="logo" class="form-control" accept="image/*">
+                        </div>
+                        <div class="form-group">
+                            <label>Receipt title</label>
+                            <input type="text" name="receipt_heading" class="form-control" value="{{ $v('receipt_heading', 'Original Cash Sale Receipt') }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Paybill number</label>
+                            <input type="text" name="till_paybill" class="form-control" value="{{ $v('till_paybill') }}" placeholder="542542">
+                        </div>
+                        <div class="form-group">
+                            <label>Account number</label>
+                            <input type="text" name="till_account_no" class="form-control" value="{{ $v('till_account_no') }}" placeholder="202331">
+                        </div>
+                        <div class="form-group">
+                            <label>Confirmation line</label>
+                            <input type="text" name="receipt_confirm_note" class="form-control" value="{{ $v('receipt_confirm_note', 'PLEASE CONFIRM YOUR GOODS AND CHANGE') }}">
+                        </div>
+                        <div class="form-group">
+                            <label>VAT line</label>
+                            <input type="text" name="receipt_vat_note" class="form-control" value="{{ $v('receipt_vat_note', 'All Prices are VAT inclusive') }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Thank you line</label>
+                            <input type="text" name="receipt_footer" class="form-control" value="{{ $v('receipt_footer', 'Thank You') }}">
+                        </div>
+                    </div>
+                </div>
+                <h4>What to show</h4>
+                <p class="text-muted">Set each line to Yes for it to appear on the slip.</p>
                 <div class="row">
                     <div class="col-md-6">
                         <div class="form-group">
@@ -340,10 +400,6 @@
                                 </select>
                             </div>
                         @endforeach
-                        <div class="form-group">
-                            <label>Description <span class="sx-req">*</span></label>
-                            <input type="text" name="receipt_footer" class="form-control" value="{{ $v('receipt_footer') }}" required>
-                        </div>
                         <div class="form-group">
                             <label>Thermal Receipt Style <span class="sx-req">*</span></label>
                             <input type="text" name="thermal_receipt_style" class="form-control" value="{{ $v('thermal_receipt_style', 'dashed') }}" required>

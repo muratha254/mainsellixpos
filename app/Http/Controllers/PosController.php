@@ -410,6 +410,7 @@ class PosController extends Controller
             'sale' => $sale,
             'paper' => $paper,
             'profile' => fleet_company_profile(),
+            'receipt' => receipt_print_options((int) $sale->company_id),
             'paymentLabels' => config('sellix.payment_methods', []),
         ]);
     }

@@ -48,6 +48,19 @@ class InventoryService
                 ->first();
 
             if (! $stock) {
+                $type = (string) ($payload['type'] ?? '');
+                $ownedElsewhere = ProductBranchStock::query()
+                    ->withoutGlobalScope('company')
+                    ->withoutGlobalScope('branch')
+                    ->where('company_id', $payload['company_id'])
+                    ->where('product_id', $payload['product_id'])
+                    ->where('product_variant_id', $variantId)
+                    ->exists();
+
+                if ($ownedElsewhere && $type !== StockMovement::TRANSFER_IN) {
+                    throw NegativeStockException::otherBranch();
+                }
+
                 $stock = ProductBranchStock::query()
                     ->withoutGlobalScope('company')
                     ->withoutGlobalScope('branch')

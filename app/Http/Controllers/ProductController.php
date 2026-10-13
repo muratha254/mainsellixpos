@@ -254,7 +254,7 @@ class ProductController extends Controller
 
         $rate = (float) $data['conversion_rate'];
 
-        Product::query()->create([
+        $child = Product::query()->create([
             'company_id' => $companyId,
             'parent_id' => $product->id,
             'conversion_rate' => $rate,
@@ -275,6 +275,8 @@ class ProductController extends Controller
             'tax_inclusive' => $product->tax_inclusive,
             'is_active' => true,
         ]);
+
+        $this->ensureBranchStock($child, (int) $data['branch_id']);
 
         return back()->with('success', 'Child item created.');
     }
@@ -324,6 +326,7 @@ class ProductController extends Controller
             'is_active' => true,
         ]);
         $child->save();
+        $this->ensureBranchStock($child, (int) $batch->branch_id);
 
         if ($request->boolean('break_now')) {
             $qtyOut = (float) $data['qty_to_convert'];
@@ -566,7 +569,11 @@ class ProductController extends Controller
             return null;
         }
 
-        $products = Product::query()->whereIn('id', array_keys($quantities))->orderBy('name')->get();
+        $products = Product::query()
+            ->availableAtBranch($this->currentBranchId())
+            ->whereIn('id', array_keys($quantities))
+            ->orderBy('name')
+            ->get();
         if ($products->isEmpty()) {
             return null;
         }
@@ -753,7 +760,7 @@ class ProductController extends Controller
 
     private function ensureBranchStock(Product $product, int $branchId): void
     {
-        if (! $product->manage_stock || ! $branchId) {
+        if (! $branchId) {
             return;
         }
 

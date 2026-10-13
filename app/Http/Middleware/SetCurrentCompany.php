@@ -50,6 +50,17 @@ class SetCurrentCompany
                 }
             }
 
+            if (! $branchId) {
+                $branchId = Branch::query()
+                    ->where('company_id', $user->company_id)
+                    ->orderByDesc('is_default')
+                    ->orderBy('id')
+                    ->value('id');
+                if ($branchId) {
+                    $request->session()->put('current_branch_id', $branchId);
+                }
+            }
+
             if ($branchId) {
                 app()->instance('currentBranchId', (int) $branchId);
             }

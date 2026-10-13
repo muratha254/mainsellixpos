@@ -318,6 +318,14 @@ class LoyaltyProgramTest extends TestCase
             'for_sale' => true,
             'tax_inclusive' => true,
         ]);
+        ProductBranchStock::query()->withoutGlobalScope('branch')->create([
+            'company_id' => $this->company->id,
+            'branch_id' => $this->branch->id,
+            'product_id' => $other->id,
+            'product_variant_id' => 0,
+            'quantity' => 0,
+            'average_cost' => 20,
+        ]);
         $settings = app(SettingsService::class);
         $settings->set($this->company->id, 'loyalty_earn_mode', 'item', 'loyalty');
         $settings->set($this->company->id, 'loyalty_points_per_item', '2', 'loyalty');

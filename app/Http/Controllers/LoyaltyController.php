@@ -145,7 +145,11 @@ class LoyaltyController extends Controller
         $loyalty = app(LoyaltyService::class);
         $rules = $loyalty->rules($companyId);
         $spend = $this->spendFields($rules['rate']);
-        $products = Product::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'sku']);
+        $products = Product::query()
+            ->availableAtBranch($this->currentBranchId())
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'sku']);
 
         return view('loyalty.settings', array_merge(fleet_shared_view_data(), [
             'activeMenu' => 'settings.loyalty',

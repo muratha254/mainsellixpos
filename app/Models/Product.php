@@ -129,41 +129,25 @@ class Product extends Model
     }
 
     /**
-     * Products visible for a branch:
-     * - non-stock items (services) are company-wide
-     * - stocked items must have a product_branch_stock row for that branch
-     * - legacy items with no stock rows anywhere remain visible (until first stocked)
+     * An item is visible at a branch only when that branch has a stock row.
+     * Creating an item writes that row for the current branch. A received
+     * transfer is what writes it for another branch.
      */
     public function scopeAvailableAtBranch($query, ?int $branchId)
     {
         if (! $branchId) {
-            return $query;
+            return $query->whereRaw('0 = 1');
         }
 
-        return $query->where(function ($builder) use ($branchId) {
-            $builder->where('manage_stock', false)
-                ->orWhereDoesntHave('branchStock', function ($stock) {
-                    $stock->withoutGlobalScope('branch');
-                })
-                ->orWhereHas('branchStock', function ($stock) use ($branchId) {
-                    $stock->withoutGlobalScope('branch')->where('branch_id', $branchId);
-                });
+        return $query->whereHas('branchStock', function ($stock) use ($branchId) {
+            $stock->withoutGlobalScope('branch')->where('branch_id', $branchId);
         });
     }
 
     public function isAvailableAtBranch(?int $branchId): bool
     {
         if (! $branchId) {
-            return true;
-        }
-
-        if (! $this->manage_stock) {
-            return true;
-        }
-
-        $hasAny = $this->branchStock()->withoutGlobalScope('branch')->exists();
-        if (! $hasAny) {
-            return true;
+            return false;
         }
 
         return $this->branchStock()

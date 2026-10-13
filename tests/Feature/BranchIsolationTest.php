@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Exceptions\NegativeStockException;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\ProductBranchStock;
@@ -218,6 +219,126 @@ class BranchIsolationTest extends TestCase
             ->assertOk()
             ->assertSee('TEST-BRANCH-B-PRODUCT')
             ->assertDontSee('TEST-BRANCH-A-PRODUCT');
+    }
+
+    public function test_item_without_a_branch_stock_row_is_hidden_everywhere(): void
+    {
+        Product::query()->create([
+            'company_id' => $this->company->id,
+            'name' => 'UNASSIGNED-SHARED-ITEM',
+            'sku' => 'UNA-' . Str::upper(Str::random(4)),
+            'purchase_price' => 10,
+            'selling_price' => 20,
+            'manage_stock' => true,
+            'allow_negative_stock' => false,
+            'is_active' => true,
+            'for_sale' => true,
+            'tax_inclusive' => true,
+        ]);
+
+        $service = Product::query()->create([
+            'company_id' => $this->company->id,
+            'name' => 'BRANCH-A-ONLY-SERVICE',
+            'sku' => 'SVC-' . Str::upper(Str::random(4)),
+            'purchase_price' => 0,
+            'selling_price' => 50,
+            'manage_stock' => false,
+            'allow_negative_stock' => true,
+            'is_active' => true,
+            'for_sale' => true,
+            'tax_inclusive' => true,
+        ]);
+
+        ProductBranchStock::query()->withoutGlobalScope('branch')->create([
+            'company_id' => $this->company->id,
+            'branch_id' => $this->branch->id,
+            'product_id' => $service->id,
+            'product_variant_id' => 0,
+            'quantity' => 0,
+            'average_cost' => 0,
+        ]);
+
+        $this->actingAsAdmin()
+            ->withSession(['current_branch_id' => $this->branch->id])
+            ->get(route('products.index'))
+            ->assertOk()
+            ->assertSee('BRANCH-A-ONLY-SERVICE')
+            ->assertDontSee('UNASSIGNED-SHARED-ITEM')
+            ->assertDontSee('TEST-BRANCH-B-PRODUCT');
+
+        $this->actingAsAdmin()
+            ->withSession(['current_branch_id' => $this->secondaryBranch->id])
+            ->get(route('products.index'))
+            ->assertOk()
+            ->assertDontSee('BRANCH-A-ONLY-SERVICE')
+            ->assertDontSee('UNASSIGNED-SHARED-ITEM')
+            ->assertDontSee('TEST-BRANCH-A-PRODUCT');
+    }
+
+    public function test_a_received_transfer_is_what_makes_an_item_visible_at_the_other_branch(): void
+    {
+        app()->instance('currentCompanyId', $this->company->id);
+
+        app(InventoryService::class)->apply([
+            'company_id' => $this->company->id,
+            'branch_id' => $this->branch->id,
+            'product_id' => $this->productA->id,
+            'type' => 'transfer_out',
+            'quantity_out' => 4,
+            'unit_cost' => 10,
+            'user_id' => $this->admin->id,
+        ]);
+
+        $this->actingAsAdmin()
+            ->withSession(['current_branch_id' => $this->secondaryBranch->id])
+            ->get(route('products.index'))
+            ->assertOk()
+            ->assertDontSee('TEST-BRANCH-A-PRODUCT');
+
+        app(InventoryService::class)->apply([
+            'company_id' => $this->company->id,
+            'branch_id' => $this->secondaryBranch->id,
+            'product_id' => $this->productA->id,
+            'type' => 'transfer_in',
+            'quantity_in' => 4,
+            'unit_cost' => 10,
+            'user_id' => $this->admin->id,
+        ]);
+
+        $this->actingAsAdmin()
+            ->withSession(['current_branch_id' => $this->secondaryBranch->id])
+            ->get(route('products.index'))
+            ->assertOk()
+            ->assertSee('TEST-BRANCH-A-PRODUCT');
+
+        $this->actingAsAdmin()
+            ->withSession(['current_branch_id' => $this->branch->id])
+            ->get(route('pos.catalog'))
+            ->assertOk()
+            ->assertJsonFragment(['name' => 'TEST-BRANCH-A-PRODUCT']);
+    }
+
+    public function test_another_branch_cannot_stock_an_item_except_by_transfer(): void
+    {
+        app()->instance('currentCompanyId', $this->company->id);
+
+        try {
+            app(InventoryService::class)->apply([
+                'company_id' => $this->company->id,
+                'branch_id' => $this->secondaryBranch->id,
+                'product_id' => $this->productA->id,
+                'type' => 'purchase',
+                'quantity_in' => 5,
+                'unit_cost' => 10,
+                'user_id' => $this->admin->id,
+            ]);
+            $this->fail('Stocking another branch item should be refused.');
+        } catch (NegativeStockException $e) {
+            $this->assertStringContainsString('another branch', $e->getMessage());
+        }
+
+        $this->assertSame(0.0, $this->stockQty($this->secondaryBranch->id, $this->productA->id));
+        $this->assertSame(10.0, $this->stockQty($this->branch->id, $this->productA->id));
     }
 
     public function test_non_admin_cannot_see_other_branch_sales_or_stock(): void

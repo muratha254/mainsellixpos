@@ -15,4 +15,9 @@ class NegativeStockException extends RuntimeException
     {
         return new self('Insufficient stock. Available stock: ' . $availableLabel . '.');
     }
+
+    public static function otherBranch(): self
+    {
+        return new self('This item belongs to another branch. Transfer it before stocking it here.');
+    }
 }

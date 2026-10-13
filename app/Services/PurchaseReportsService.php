@@ -19,7 +19,14 @@ class PurchaseReportsService
 
     public function productOptions(): Collection
     {
-        return Product::query()->where('is_active', true)->orderBy('name')->limit(500)->get(['id', 'name']);
+        $branchId = app()->bound('currentBranchId') ? (int) app('currentBranchId') : null;
+
+        return Product::query()
+            ->availableAtBranch($branchId ?: null)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->limit(500)
+            ->get(['id', 'name']);
     }
 
     public function statuses(): array

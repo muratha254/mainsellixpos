@@ -19,6 +19,7 @@ class ExpiredItemsReportController extends Controller
         $branchId = $this->currentBranchId();
 
         $products = Product::query()
+            ->availableAtBranch($branchId)
             ->where('is_active', true)
             ->orderBy('name')
             ->limit(500)
@@ -49,6 +50,7 @@ class ExpiredItemsReportController extends Controller
 
             // Also include products with product-level expiry (no batch record).
             $productExpiries = Product::query()
+                ->availableAtBranch($branchId)
                 ->with(['branchStock' => function ($q) use ($branchId) {
                     if ($branchId) {
                         $q->where('branch_id', $branchId);

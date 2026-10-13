@@ -209,7 +209,12 @@ class StockController extends Controller
     {
         $this->authorizePermission('inventory.adjust');
 
-        $products = Product::query()->where('is_active', true)->where('manage_stock', true)->orderBy('name')->get();
+        $products = Product::query()
+            ->availableAtBranch($this->currentBranchId())
+            ->where('is_active', true)
+            ->where('manage_stock', true)
+            ->orderBy('name')
+            ->get();
 
         return view('stock.issued-create', array_merge(fleet_shared_view_data(), [
             'activeMenu' => 'stock.issued',

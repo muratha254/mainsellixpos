@@ -25,7 +25,12 @@ class StockReportsService
 
     public function productOptions(): Collection
     {
-        return Product::query()->where('is_active', true)->orderBy('name')->limit(500)->get(['id', 'name', 'sku']);
+        return Product::query()
+            ->availableAtBranch($this->activeBranchId())
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->limit(500)
+            ->get(['id', 'name', 'sku']);
     }
 
     public function branchOptions(): Collection
@@ -253,6 +258,7 @@ class StockReportsService
     public function alertRows(?int $branchId = null): Collection
     {
         return Product::query()
+            ->availableAtBranch($branchId)
             ->with(['category', 'brand', 'branchStock'])
             ->where('is_active', true)
             ->where('manage_stock', true)
@@ -419,6 +425,7 @@ class StockReportsService
     private function productQuery(array $filters)
     {
         return Product::query()
+            ->availableAtBranch($this->activeBranchId())
             ->where('is_active', true)
             ->when(! empty($filters['category_id']), fn ($q) => $q->where('category_id', (int) $filters['category_id']))
             ->when(! empty($filters['brand_id']), fn ($q) => $q->where('brand_id', (int) $filters['brand_id']))
@@ -459,5 +466,16 @@ class StockReportsService
     private function end(string $date): Carbon
     {
         return Carbon::parse($date)->endOfDay();
+    }
+
+    private function activeBranchId(): ?int
+    {
+        if (! app()->bound('currentBranchId')) {
+            return null;
+        }
+
+        $branchId = (int) app('currentBranchId');
+
+        return $branchId > 0 ? $branchId : null;
     }
 }

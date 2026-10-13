@@ -378,17 +378,78 @@
         };
     }
 
+    function tracksStock(item) {
+        return !!(item && item.manage_stock && !item.allow_negative_stock);
+    }
+
+    function unitFactorOf(unit) {
+        var factor = parseFloat(unit && (unit.factor || unit.unit_factor));
+        return factor > 0 ? factor : 1;
+    }
+
+    function stockBaseOf(item) {
+        var stock = parseFloat(item && item.qty);
+        if (isNaN(stock)) stock = parseFloat(item && item.stock_base);
+        return isNaN(stock) ? 0 : stock;
+    }
+
+    function formatStock(n) {
+        var rounded = Math.round((parseFloat(n) || 0) * 10000) / 10000;
+        return String(rounded);
+    }
+
+    function maxSellQty(stock, factor, usedBase) {
+        var left = (parseFloat(stock) || 0) - (parseFloat(usedBase) || 0);
+        if (left <= 0.0000005) return 0;
+        var max = left / (factor > 0 ? factor : 1);
+        return Math.floor((max + 0.000000001) * 10000) / 10000;
+    }
+
+    function usedBaseExcept(productId, skipIndex) {
+        var used = 0;
+        cart.forEach(function (row, i) {
+            if (i === skipIndex || !row.track_stock || String(row.id) !== String(productId)) return;
+            used += (parseFloat(row.quantity) || 0) * (parseFloat(row.unit_factor) || 1);
+        });
+        return used;
+    }
+
+    function clampLineQty(productId, factor, stock, track, desired, skipIndex) {
+        desired = parseFloat(desired) || 0;
+        if (!track) return { qty: desired, limited: false, max: null };
+        var max = maxSellQty(stock, factor, usedBaseExcept(productId, skipIndex));
+        if (desired - max > 0.0000005) {
+            return { qty: max, limited: true, max: max };
+        }
+        return { qty: desired, limited: false, max: max };
+    }
+
+    var stockNoticeAt = 0;
+    function notifyStock(name, maxQty, unitName) {
+        var now = Date.now();
+        if (now - stockNoticeAt < 1200) return;
+        stockNoticeAt = now;
+        var text = maxQty > 0
+            ? 'Only ' + formatStock(maxQty) + (unitName ? ' ' + unitName : '') + ' of ' + name + ' is in this store.'
+            : name + ' is out of stock in this store.';
+        Swal.fire({ icon: 'warning', title: 'Not enough stock', text: text, timer: 1800, showConfirmButton: false });
+    }
+
     function renderCart() {
         var html = '';
         cart.forEach(function (row, i) {
             var price = linePrice(row);
+            var lineMax = row.track_stock
+                ? maxSellQty(row.stock_base, row.unit_factor || 1, usedBaseExcept(row.id, i))
+                : null;
+            var atMax = lineMax !== null && row.quantity + 0.0000005 >= lineMax;
             html += '<tr class="pos-line-row">';
             html += '<td class="pos-line-name">' + escapeHtml(row.name) + (row.unit_name ? ' <small class="pos-unit-tag">' + escapeHtml(row.unit_name) + '</small>' : '') + '</td>';
             html += '<td class="pos-line-qty">';
             html += '<div class="pos-stepper">';
             html += '<button type="button" class="pos-step" data-i="' + i + '" data-d="-1">&minus;</button>';
-            html += '<input type="number" min="0.0001" step="0.0001" class="pos-qty" data-i="' + i + '" value="' + row.quantity + '">';
-            html += '<button type="button" class="pos-step" data-i="' + i + '" data-d="1">+</button>';
+            html += '<input type="number" min="0.0001" step="0.0001" class="pos-qty" data-i="' + i + '" value="' + row.quantity + '"' + (lineMax !== null ? ' max="' + lineMax + '"' : '') + '>';
+            html += '<button type="button" class="pos-step" data-i="' + i + '" data-d="1"' + (atMax ? ' disabled' : '') + '>+</button>';
             html += '</div>';
             html += '<input type="text" class="pos-serial" data-i="' + i + '" placeholder="Enter Serial/Key/Unit" value="' + escapeHtml(row.serial || '') + '">';
             html += '</td>';
@@ -444,9 +505,27 @@
             ? (inclusive ? +(selling * rate / (100 + rate)).toFixed(2) : +(selling * rate / 100).toFixed(2))
             : 0;
         var key = String(item.id) + ':' + String(unit.key || unit.id || 0);
-        var existing = cart.filter(function (row) { return row.line_key === key; })[0];
-        if (existing) {
-            existing.quantity = +(existing.quantity + qty).toFixed(4);
+        var factor = unitFactorOf(unit);
+        var track = tracksStock(item);
+        var stock = stockBaseOf(item);
+        var existingIndex = -1;
+        cart.forEach(function (row, i) {
+            if (row.line_key === key) existingIndex = i;
+        });
+        var desired = existingIndex >= 0 ? +(cart[existingIndex].quantity + qty).toFixed(4) : qty;
+        var clamped = clampLineQty(item.id, factor, stock, track, desired, existingIndex);
+        if (clamped.qty <= 0) {
+            notifyStock(item.name, 0, unit.name || '');
+            return;
+        }
+        if (clamped.limited) {
+            notifyStock(item.name, clamped.qty, unit.name || '');
+        }
+        if (existingIndex >= 0) {
+            cart[existingIndex].quantity = clamped.qty;
+            cart[existingIndex].track_stock = track;
+            cart[existingIndex].stock_base = stock;
+            cart[existingIndex].unit_factor = factor;
         } else {
             cart.push({
                 id: item.id,
@@ -454,6 +533,9 @@
                 product_unit_id: unit.id || null,
                 sell_as: unit.key || 'base',
                 unit_name: unit.name || '',
+                unit_factor: factor,
+                track_stock: track,
+                stock_base: stock,
                 name: item.name,
                 price: price,
                 wholesale_price: amount(unit.wholesale_price) || amount(item.wholesale_price),
@@ -464,7 +546,7 @@
                 apply_tax: false,
                 type: 'R',
                 serial: '',
-                quantity: qty
+                quantity: clamped.qty
             });
         }
         renderCart();
@@ -483,7 +565,17 @@
         $('#sx-sell-as').html(html);
         if (presetKey) $('#sx-sell-as').val(presetKey);
         else if (item.scan_sell_as) $('#sx-sell-as').val(item.scan_sell_as);
-        $('#sx-sell-qty').val(1);
+        var startQty = 1;
+        if (tracksStock(item)) {
+            var sellUnit = currentSellUnit();
+            var sellMax = maxSellQty(stockBaseOf(item), unitFactorOf(sellUnit), usedBaseExcept(item.id, -1));
+            $('#sx-sell-qty').attr('max', sellMax);
+            startQty = sellMax >= 1 ? 1 : sellMax;
+            if (sellMax <= 0) notifyStock(item.name, 0, sellUnit ? sellUnit.name : '');
+        } else {
+            $('#sx-sell-qty').removeAttr('max');
+        }
+        $('#sx-sell-qty').val(startQty);
         refreshSellPreview();
         $('#sx-pos-sell-modal').modal('show');
         setTimeout(function () { $('#sx-sell-qty').focus().select(); }, 300);
@@ -501,6 +593,17 @@
         $('#sx-sell-total').val(money(unit.selling_price * qty));
     }
     $('#sx-sell-as, #sx-sell-qty').on('input change', refreshSellPreview);
+    $('#sx-sell-qty').on('input', function () {
+        if (!sellItem || !tracksStock(sellItem)) return;
+        var qty = parseFloat($(this).val());
+        if (!(qty > 0)) return;
+        var unit = currentSellUnit();
+        var clamped = clampLineQty(sellItem.id, unitFactorOf(unit), stockBaseOf(sellItem), true, qty, -1);
+        if (!clamped.limited) return;
+        $(this).val(clamped.qty > 0 ? clamped.qty : 0);
+        notifyStock(sellItem.name, clamped.max, unit ? unit.name : '');
+        refreshSellPreview();
+    });
     $('#sx-sell-add').on('click', function () {
         var qty = parseFloat($('#sx-sell-qty').val());
         if (!(qty > 0) || !sellItem) return;
@@ -844,21 +947,47 @@
         }
     });
 
-    $(document).on('click', '.pos-step', function () {
-        var i = $(this).data('i');
-        cart[i].quantity += parseInt($(this).data('d'), 10);
-        if (cart[i].quantity <= 0) cart.splice(i, 1);
-        renderCart();
-    });
-    $(document).on('change', '.pos-qty', function () {
-        var i = $(this).data('i');
-        var qty = parseFloat($(this).val());
+    function applyLineQty(i, qty) {
+        var row = cart[i];
+        if (!row) return;
         if (!(qty > 0)) {
             cart.splice(i, 1);
-        } else {
-            cart[i].quantity = qty;
+            renderCart();
+            return;
         }
+        var clamped = clampLineQty(row.id, row.unit_factor || 1, row.stock_base || 0, !!row.track_stock, qty, i);
+        if (clamped.limited) {
+            notifyStock(row.name, clamped.max, row.unit_name);
+        }
+        if (clamped.qty <= 0) {
+            cart.splice(i, 1);
+            renderCart();
+            return;
+        }
+        cart[i].quantity = clamped.qty;
         renderCart();
+        if (clamped.limited) {
+            var field = $('.pos-qty[data-i="' + i + '"]').get(0);
+            if (field) field.focus();
+        }
+    }
+    $(document).on('click', '.pos-step', function () {
+        var i = $(this).data('i');
+        if (!cart[i]) return;
+        applyLineQty(i, +(cart[i].quantity + parseInt($(this).data('d'), 10)).toFixed(4));
+    });
+    $(document).on('input', '.pos-qty', function () {
+        var i = $(this).data('i');
+        var row = cart[i];
+        if (!row || !row.track_stock) return;
+        var qty = parseFloat($(this).val());
+        if (!(qty > 0)) return;
+        var clamped = clampLineQty(row.id, row.unit_factor || 1, row.stock_base || 0, true, qty, i);
+        if (!clamped.limited) return;
+        applyLineQty(i, qty);
+    });
+    $(document).on('change', '.pos-qty', function () {
+        applyLineQty($(this).data('i'), parseFloat($(this).val()));
     });
     $(document).on('input', '.pos-serial', function () {
         cart[$(this).data('i')].serial = $(this).val();
@@ -1258,9 +1387,20 @@
                     apply_tax: item.apply_tax === true || item.apply_tax === 1 || item.apply_tax === '1',
                     type: 'R',
                     serial: '',
+                    unit_factor: parseFloat(item.unit_factor) || 1,
+                    track_stock: !!(item.manage_stock && !item.allow_negative_stock),
+                    stock_base: parseFloat(item.qty) || 0,
                     quantity: item.qty_sold || 1
                 };
             });
+            cart.forEach(function (row, i) {
+                if (!row.track_stock) return;
+                var clamped = clampLineQty(row.id, row.unit_factor || 1, row.stock_base || 0, true, row.quantity, i);
+                if (!clamped.limited) return;
+                row.quantity = clamped.qty;
+                notifyStock(row.name, clamped.max, row.unit_name);
+            });
+            cart = cart.filter(function (row) { return row.quantity > 0; });
             renderCart();
             $('#sx-pos-holds-modal').modal('hide');
         });

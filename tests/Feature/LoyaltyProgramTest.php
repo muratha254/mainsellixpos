@@ -30,7 +30,35 @@ class LoyaltyProgramTest extends TestCase
             ->get(route('pos.index'))
             ->assertOk()
             ->assertSee('RECEIVE PAYMENT', false)
-            ->assertSee('Pay with points', false);
+            ->assertSee('Pay with points', false)
+            ->assertSee('Not enough stock', false);
+    }
+
+    public function test_pos_refuses_a_quantity_above_store_stock(): void
+    {
+        ProductBranchStock::query()->where('product_id', $this->product->id)->update(['quantity' => 5]);
+
+        $found = $this->actingAsAdmin()->getJson(route('pos.search', ['q' => $this->product->name]));
+        $found->assertOk();
+        $match = collect($found->json())->firstWhere('id', $this->product->id);
+        $this->assertNotNull($match);
+        $this->assertTrue($match['manage_stock']);
+        $this->assertFalse($match['allow_negative_stock']);
+        $this->assertEquals(5.0, (float) $match['qty']);
+
+        $over = $this->actingAsAdmin()->postJson(route('pos.order'), [
+            'customer_id' => $this->customer->id,
+            'sale_date' => now()->toDateString(),
+            'document_type' => 'pos',
+            'items' => [
+                ['product_id' => $this->product->id, 'quantity' => 40],
+            ],
+            'payment_amount' => 4000,
+            'payment_method' => 'cash',
+        ]);
+
+        $over->assertStatus(422);
+        $this->assertStringContainsString('Insufficient stock', (string) $over->json('message'));
     }
 
     public function test_purchase_earns_points_and_a_later_sale_can_redeem_them(): void

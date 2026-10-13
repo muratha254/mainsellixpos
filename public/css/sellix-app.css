@@ -3099,6 +3099,11 @@ body.pos-body {
     line-height: 1;
 }
 
+.pos-step:disabled {
+    color: #bbb;
+    cursor: not-allowed;
+}
+
 .pos-qty {
     width: 56px;
     height: 30px;

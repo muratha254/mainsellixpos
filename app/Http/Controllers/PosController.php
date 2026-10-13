@@ -217,6 +217,9 @@ class PosController extends Controller
                         'tax_inclusive' => true,
                         'qty' => 0,
                         'cost' => (float) $item->cost_price,
+                        'manage_stock' => false,
+                        'allow_negative_stock' => false,
+                        'unit_factor' => (float) ($item->unit_factor ?: 1),
                     ];
                 $payload['qty_sold'] = (float) $item->quantity;
                 $payload['unit_id'] = $item->product_unit_id;
@@ -233,6 +236,7 @@ class PosController extends Controller
                     ? round((float) $item->tax_amount / (float) $item->quantity, 4)
                     : (float) $item->tax_amount;
                 $payload['apply_tax'] = (float) $item->tax_amount > 0;
+                $payload['unit_factor'] = (float) ($item->unit_factor ?: ($payload['unit_factor'] ?? 1));
 
                 return $payload;
             })->values(),
@@ -838,6 +842,8 @@ class PosController extends Controller
             'tax_inclusive' => $inclusive,
             'qty' => $stock,
             'qty_display' => $conversion->stockDisplay($product, $stock, $displayMode),
+            'manage_stock' => (bool) $product->manage_stock,
+            'allow_negative_stock' => (bool) $product->allow_negative_stock,
             'cost' => $conversion->costPerSellingUnit($product, $unit['factor'] ?? 1),
             'image' => $product->image_path ? asset('storage/' . ltrim($product->image_path, '/')) : null,
             'unit_id' => $unit['id'] ?? null,

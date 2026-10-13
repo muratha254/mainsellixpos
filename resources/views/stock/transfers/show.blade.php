@@ -17,14 +17,34 @@
     <div class="sx-items-toolbar">
         <h3 class="sx-box-title" style="flex:none;margin:0;">{{ $transfer->number }}</h3>
         <div class="sx-toolbar-actions">
-            @if($canTransfer && $transfer->status === 'draft')
+            @php
+                $isSender = (int) $currentBranchId === (int) $transfer->from_branch_id;
+                $isReceiver = (int) $currentBranchId === (int) $transfer->to_branch_id;
+            @endphp
+            @if($canTransfer && $transfer->status === 'draft' && $isSender)
                 <form method="post" action="{{ route('stock.transfers.complete', $transfer) }}" style="display:inline;">
                     @csrf
-                    <button type="submit" class="btn btn-success"><i class="fa fa-check"></i> Complete</button>
+                    <button type="submit" class="btn btn-success"><i class="fa fa-paper-plane"></i> Send to branch</button>
                 </form>
                 <form method="post" action="{{ route('stock.transfers.cancel', $transfer) }}" style="display:inline;" onsubmit="return confirm('Cancel this transfer?');">
                     @csrf
                     <button type="submit" class="btn btn-danger"><i class="fa fa-times"></i> Cancel</button>
+                </form>
+            @endif
+            @if($canTransfer && $transfer->status === 'pending' && $isReceiver)
+                <form method="post" action="{{ route('stock.transfers.receive', $transfer) }}" style="display:inline;">
+                    @csrf
+                    <button type="submit" class="btn btn-success"><i class="fa fa-check"></i> Receive</button>
+                </form>
+                <form method="post" action="{{ route('stock.transfers.reject', $transfer) }}" style="display:inline;" onsubmit="return confirm('Reject this transfer and return the items to the sending branch?');">
+                    @csrf
+                    <button type="submit" class="btn btn-danger"><i class="fa fa-times"></i> Reject</button>
+                </form>
+            @endif
+            @if($canTransfer && $transfer->status === 'pending' && $isSender)
+                <form method="post" action="{{ route('stock.transfers.cancel', $transfer) }}" style="display:inline;" onsubmit="return confirm('Cancel this transfer and return the items to this branch?');">
+                    @csrf
+                    <button type="submit" class="btn btn-danger"><i class="fa fa-times"></i> Cancel send</button>
                 </form>
             @endif
             <a href="{{ route('stock.transfers.index') }}" class="btn btn-default">Back</a>
@@ -38,11 +58,11 @@
             <div class="col-md-3">
                 <strong>Status:</strong>
                 @if($transfer->status === 'completed')
-                    <span class="sx-status-active">Completed</span>
-                @elseif($transfer->status === 'cancelled')
-                    <span class="sx-status-inactive">Cancelled</span>
+                    <span class="sx-status-active">{{ $transfer->statusLabel() }}</span>
+                @elseif(in_array($transfer->status, ['cancelled', 'rejected'], true))
+                    <span class="sx-status-inactive">{{ $transfer->statusLabel() }}</span>
                 @else
-                    <span class="label label-warning">{{ ucfirst($transfer->status) }}</span>
+                    <span class="label label-warning">{{ $transfer->statusLabel() }}</span>
                 @endif
             </div>
         </div>
@@ -81,8 +101,11 @@
 
         <p class="text-muted" style="margin-top:12px;">
             Posted by {{ optional($transfer->user)->name ?: '-' }}
-            @if($transfer->completed_at) · Completed {{ $transfer->completed_at }} @endif
-            @if($transfer->cancelled_at) · Cancelled {{ $transfer->cancelled_at }} @endif
+            @if($transfer->status === 'pending')
+                · Waiting for {{ optional($transfer->toBranch)->name ?: 'the receiving branch' }} to receive or reject
+            @endif
+            @if($transfer->completed_at) · Received {{ $transfer->completed_at }} @endif
+            @if($transfer->cancelled_at) · Closed {{ $transfer->cancelled_at }} @endif
         </p>
     </div>
 </div>

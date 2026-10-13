@@ -97,7 +97,7 @@
 
             <div class="text-center sx-form-actions" style="margin-top:20px;">
                 <button type="submit" name="action" value="draft" class="btn btn-warning"><i class="fa fa-save"></i> Save Draft</button>
-                <button type="submit" name="action" value="complete" class="btn btn-success"><i class="fa fa-check"></i> Save &amp; Complete</button>
+                <button type="submit" name="action" value="send" class="btn btn-success"><i class="fa fa-paper-plane"></i> Send to branch</button>
                 <a href="{{ route('stock.transfers.index') }}" class="btn btn-default"><i class="fa fa-times"></i> Close</a>
             </div>
         </div>

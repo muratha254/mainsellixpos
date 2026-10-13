@@ -249,6 +249,12 @@ Route::middleware('auth')->group(function () {
     Route::post('/stock/transfers/{transfer}/complete', [StockTransferController::class, 'complete'])
         ->middleware('permission:inventory.transfer')
         ->name('stock.transfers.complete');
+    Route::post('/stock/transfers/{transfer}/receive', [StockTransferController::class, 'receive'])
+        ->middleware('permission:inventory.transfer')
+        ->name('stock.transfers.receive');
+    Route::post('/stock/transfers/{transfer}/reject', [StockTransferController::class, 'reject'])
+        ->middleware('permission:inventory.transfer')
+        ->name('stock.transfers.reject');
     Route::post('/stock/transfers/{transfer}/cancel', [StockTransferController::class, 'cancel'])
         ->middleware('permission:inventory.transfer')
         ->name('stock.transfers.cancel');

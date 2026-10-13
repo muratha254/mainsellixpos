@@ -20,6 +20,7 @@ class StockTransferController extends Controller
     {
         $this->authorizePermission('inventory.view');
 
+        $branchId = (int) $this->currentBranchId();
         $transfers = StockTransfer::query()
             ->with(['fromBranch', 'toBranch', 'user', 'items'])
             ->orderByDesc('id')
@@ -28,6 +29,11 @@ class StockTransferController extends Controller
         return view('stock.transfers.index', array_merge(fleet_shared_view_data(), [
             'activeMenu' => 'stock.transfers',
             'transfers' => $transfers,
+            'currentBranchId' => $branchId,
+            'incomingCount' => $transfers->filter(function (StockTransfer $transfer) use ($branchId) {
+                return $transfer->status === StockTransfer::STATUS_PENDING
+                    && (int) $transfer->to_branch_id === $branchId;
+            })->count(),
             'canTransfer' => auth()->user()->hasPermission('inventory.transfer'),
         ]));
     }
@@ -59,10 +65,10 @@ class StockTransferController extends Controller
 
         $companyId = (int) auth()->user()->company_id;
         $data = $this->validateTransfer($request, $companyId);
-        $completeNow = ($data['action'] ?? 'draft') === 'complete';
+        $sendNow = in_array($data['action'] ?? 'draft', ['complete', 'send'], true);
 
         try {
-            $transfer = DB::transaction(function () use ($data, $numbers, $inventory, $audit, $companyId, $completeNow, $request) {
+            $transfer = DB::transaction(function () use ($data, $numbers, $inventory, $audit, $companyId, $sendNow, $request) {
                 $transfer = StockTransfer::query()->create([
                     'company_id' => $companyId,
                     'from_branch_id' => (int) $data['from_branch_id'],
@@ -93,8 +99,8 @@ class StockTransferController extends Controller
                     'status' => $transfer->status,
                 ], $request);
 
-                if ($completeNow) {
-                    $this->applyCompletion($transfer->fresh(['items.product']), $inventory, $audit, $request);
+                if ($sendNow) {
+                    $this->dispatchTransfer($transfer->fresh(['items.product']), $inventory, $audit, $request);
                 }
 
                 return $transfer->fresh(['items', 'fromBranch', 'toBranch']);
@@ -107,7 +113,9 @@ class StockTransferController extends Controller
 
         return redirect()
             ->route('stock.transfers.show', $transfer)
-            ->with('success', $completeNow ? 'Stock transfer completed.' : 'Stock transfer saved as draft.');
+            ->with('success', $sendNow
+                ? 'Transfer sent. The receiving branch can now receive or reject it.'
+                : 'Stock transfer saved as draft.');
     }
 
     public function show(StockTransfer $transfer)
@@ -123,6 +131,7 @@ class StockTransferController extends Controller
         return view('stock.transfers.show', array_merge(fleet_shared_view_data(), [
             'activeMenu' => 'stock.transfers',
             'transfer' => $transfer,
+            'currentBranchId' => (int) $this->currentBranchId(),
             'canTransfer' => auth()->user()->hasPermission('inventory.transfer'),
         ]));
     }
@@ -134,7 +143,7 @@ class StockTransferController extends Controller
         try {
             DB::transaction(function () use ($transfer, $inventory, $audit) {
                 $locked = StockTransfer::query()->whereKey($transfer->id)->lockForUpdate()->firstOrFail();
-                $this->applyCompletion($locked->load(['items.product']), $inventory, $audit, request());
+                $this->dispatchTransfer($locked->load(['items.product']), $inventory, $audit, request());
             });
         } catch (NegativeStockException $e) {
             return back()->with('error', $e->getMessage());
@@ -144,50 +153,98 @@ class StockTransferController extends Controller
 
         return redirect()
             ->route('stock.transfers.show', $transfer)
-            ->with('success', 'Stock transfer completed.');
+            ->with('success', 'Transfer sent. The receiving branch can now receive or reject it.');
     }
 
-    public function cancel(StockTransfer $transfer, AuditLogger $audit)
+    public function receive(StockTransfer $transfer, InventoryService $inventory, AuditLogger $audit)
     {
         $this->authorizePermission('inventory.transfer');
 
-        if ($transfer->status === StockTransfer::STATUS_COMPLETED) {
-            return back()->with('error', 'Completed transfers cannot be cancelled.');
+        try {
+            DB::transaction(function () use ($transfer, $inventory, $audit) {
+                $locked = StockTransfer::query()->whereKey($transfer->id)->lockForUpdate()->firstOrFail();
+                $this->receiveTransfer($locked->load(['items.product']), $inventory, $audit, request());
+            });
+        } catch (NegativeStockException $e) {
+            return back()->with('error', $e->getMessage());
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
         }
 
-        if ($transfer->status === StockTransfer::STATUS_CANCELLED) {
-            return back()->with('error', 'Transfer is already cancelled.');
+        return redirect()
+            ->route('stock.transfers.show', $transfer)
+            ->with('success', 'Items received into this branch.');
+    }
+
+    public function reject(StockTransfer $transfer, InventoryService $inventory, AuditLogger $audit)
+    {
+        $this->authorizePermission('inventory.transfer');
+
+        try {
+            DB::transaction(function () use ($transfer, $inventory, $audit) {
+                $locked = StockTransfer::query()->whereKey($transfer->id)->lockForUpdate()->firstOrFail();
+                $this->rejectTransfer($locked->load(['items.product']), $inventory, $audit, request());
+            });
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
         }
 
-        $before = $transfer->only(['number', 'status']);
-        $transfer->update([
-            'status' => StockTransfer::STATUS_CANCELLED,
-            'cancelled_at' => now(),
-        ]);
+        return redirect()
+            ->route('stock.transfers.show', $transfer)
+            ->with('success', 'Transfer rejected. The items were returned to the sending branch.');
+    }
 
-        $audit->record('cancel', 'stock_transfer', $transfer, $before, [
-            'number' => $transfer->number,
-            'status' => $transfer->status,
-            'cancelled_at' => optional($transfer->cancelled_at)->toDateTimeString(),
-        ]);
+    public function cancel(StockTransfer $transfer, InventoryService $inventory, AuditLogger $audit)
+    {
+        $this->authorizePermission('inventory.transfer');
+
+        try {
+            DB::transaction(function () use ($transfer, $inventory, $audit) {
+                $locked = StockTransfer::query()->whereKey($transfer->id)->lockForUpdate()->firstOrFail();
+                if ($locked->status === StockTransfer::STATUS_COMPLETED) {
+                    throw new \RuntimeException('Received transfers cannot be cancelled.');
+                }
+                if (in_array($locked->status, [StockTransfer::STATUS_CANCELLED, StockTransfer::STATUS_REJECTED], true)) {
+                    throw new \RuntimeException('Transfer is already closed.');
+                }
+                if ((int) $this->currentBranchId() !== (int) $locked->from_branch_id) {
+                    throw new \RuntimeException('Only the sending branch can cancel this transfer.');
+                }
+
+                $locked->load(['items.product']);
+                if ($locked->status === StockTransfer::STATUS_PENDING) {
+                    $this->returnToSource($locked, $inventory, 'Transfer cancelled ' . $locked->number);
+                }
+
+                $before = $locked->only(['number', 'status']);
+                $locked->update([
+                    'status' => StockTransfer::STATUS_CANCELLED,
+                    'cancelled_at' => now(),
+                ]);
+                $audit->record('cancel', 'stock_transfer', $locked, $before, [
+                    'number' => $locked->number,
+                    'status' => $locked->status,
+                ], request());
+            });
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         return redirect()
             ->route('stock.transfers.show', $transfer)
             ->with('success', 'Stock transfer cancelled.');
     }
 
-    private function applyCompletion(StockTransfer $transfer, InventoryService $inventory, AuditLogger $audit, ?Request $request = null): void
+    private function dispatchTransfer(StockTransfer $transfer, InventoryService $inventory, AuditLogger $audit, ?Request $request = null): void
     {
-        if ($transfer->status === StockTransfer::STATUS_COMPLETED) {
-            throw new \RuntimeException('Transfer already completed.');
+        if ($transfer->status !== StockTransfer::STATUS_DRAFT) {
+            throw new \RuntimeException('Only a draft transfer can be sent.');
         }
-
-        if ($transfer->status === StockTransfer::STATUS_CANCELLED) {
-            throw new \RuntimeException('Cancelled transfers cannot be completed.');
+        if ((int) $this->currentBranchId() !== (int) $transfer->from_branch_id) {
+            throw new \RuntimeException('Switch to the sending branch before sending this transfer.');
         }
-
         if ($transfer->items->isEmpty()) {
-            throw new \RuntimeException('Add at least one item before completing.');
+            throw new \RuntimeException('Add at least one item before sending.');
         }
 
         $allowNegative = auth()->user() && auth()->user()->hasPermission('inventory.allow_negative');
@@ -222,21 +279,38 @@ class StockTransferController extends Controller
                 'occurred_at' => $transfer->transfer_date,
                 'allow_negative' => $allowNegative,
             ]);
+        }
 
+        $before = $transfer->only(['number', 'status']);
+        $transfer->update(['status' => StockTransfer::STATUS_PENDING]);
+        $audit->record('send', 'stock_transfer', $transfer, $before, [
+            'number' => $transfer->number,
+            'status' => $transfer->status,
+        ], $request);
+    }
+
+    private function receiveTransfer(StockTransfer $transfer, InventoryService $inventory, AuditLogger $audit, ?Request $request = null): void
+    {
+        if ($transfer->status !== StockTransfer::STATUS_PENDING) {
+            throw new \RuntimeException('Only a transfer awaiting receipt can be received.');
+        }
+        $this->assertReceivingBranch($transfer);
+
+        foreach ($transfer->items as $item) {
             $inventory->apply([
-                'company_id' => $companyId,
+                'company_id' => (int) $transfer->company_id,
                 'branch_id' => (int) $transfer->to_branch_id,
                 'product_id' => (int) $item->product_id,
                 'product_variant_id' => (int) ($item->product_variant_id ?? 0),
                 'type' => StockMovement::TRANSFER_IN,
-                'quantity_in' => $qty,
+                'quantity_in' => (float) $item->quantity,
                 'unit_cost' => $item->unit_cost,
                 'user_id' => auth()->id(),
                 'notes' => 'Transfer in ' . $transfer->number,
                 'reference_type' => StockTransfer::class,
                 'reference_id' => $transfer->id,
                 'reference_number' => $transfer->number,
-                'occurred_at' => $transfer->transfer_date,
+                'occurred_at' => now(),
             ]);
         }
 
@@ -245,12 +319,57 @@ class StockTransferController extends Controller
             'status' => StockTransfer::STATUS_COMPLETED,
             'completed_at' => now(),
         ]);
-
-        $audit->record('complete', 'stock_transfer', $transfer, $before, [
+        $audit->record('receive', 'stock_transfer', $transfer, $before, [
             'number' => $transfer->number,
             'status' => $transfer->status,
-            'completed_at' => optional($transfer->completed_at)->toDateTimeString(),
         ], $request);
+    }
+
+    private function rejectTransfer(StockTransfer $transfer, InventoryService $inventory, AuditLogger $audit, ?Request $request = null): void
+    {
+        if ($transfer->status !== StockTransfer::STATUS_PENDING) {
+            throw new \RuntimeException('Only a transfer awaiting receipt can be rejected.');
+        }
+        $this->assertReceivingBranch($transfer);
+        $this->returnToSource($transfer, $inventory, 'Transfer rejected ' . $transfer->number);
+
+        $before = $transfer->only(['number', 'status']);
+        $transfer->update([
+            'status' => StockTransfer::STATUS_REJECTED,
+            'cancelled_at' => now(),
+        ]);
+        $audit->record('reject', 'stock_transfer', $transfer, $before, [
+            'number' => $transfer->number,
+            'status' => $transfer->status,
+        ], $request);
+    }
+
+    private function assertReceivingBranch(StockTransfer $transfer): void
+    {
+        if ((int) $this->currentBranchId() !== (int) $transfer->to_branch_id) {
+            throw new \RuntimeException('Switch to the receiving branch to receive or reject this transfer.');
+        }
+    }
+
+    private function returnToSource(StockTransfer $transfer, InventoryService $inventory, string $notes): void
+    {
+        foreach ($transfer->items as $item) {
+            $inventory->apply([
+                'company_id' => (int) $transfer->company_id,
+                'branch_id' => (int) $transfer->from_branch_id,
+                'product_id' => (int) $item->product_id,
+                'product_variant_id' => (int) ($item->product_variant_id ?? 0),
+                'type' => StockMovement::TRANSFER_IN,
+                'quantity_in' => (float) $item->quantity,
+                'unit_cost' => $item->unit_cost,
+                'user_id' => auth()->id(),
+                'notes' => $notes,
+                'reference_type' => StockTransfer::class,
+                'reference_id' => $transfer->id,
+                'reference_number' => $transfer->number,
+                'occurred_at' => now(),
+            ]);
+        }
     }
 
     private function validateTransfer(Request $request, int $companyId): array
@@ -260,7 +379,7 @@ class StockTransferController extends Controller
             'to_branch_id' => ['required', 'different:from_branch_id', Rule::exists('branches', 'id')->where('company_id', $companyId)],
             'transfer_date' => 'required|date',
             'notes' => 'nullable|string|max:2000',
-            'action' => 'nullable|in:draft,complete',
+            'action' => 'nullable|in:draft,complete,send',
             'items' => 'required|array|min:1',
             'items.*.product_id' => ['required', Rule::exists('products', 'id')->where('company_id', $companyId)],
             'items.*.product_variant_id' => 'nullable|integer|min:0',

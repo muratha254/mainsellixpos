@@ -189,19 +189,75 @@ class OperationalWorkflowTest extends TestCase
         $transfer = StockTransfer::query()->latest('id')->first();
         $this->assertNotNull($transfer);
         $response->assertRedirect(route('stock.transfers.show', $transfer));
-        $this->assertSame(StockTransfer::STATUS_COMPLETED, $transfer->fresh()->status);
+        $this->assertSame(StockTransfer::STATUS_PENDING, $transfer->fresh()->status);
 
+        $this->assertEquals(90.0, $this->stockQty($this->branch->id));
+        $this->assertEquals(0.0, $this->stockQty($this->secondaryBranch->id));
+
+        $this->actingAsAdmin()
+            ->withSession(['current_branch_id' => $this->secondaryBranch->id])
+            ->get(route('stock.transfers.index'))
+            ->assertOk()
+            ->assertSee('Receive', false)
+            ->assertSee('Reject', false)
+            ->assertSee($transfer->number, false);
+
+        $tooSoon = $this->actingAsAdmin()
+            ->from(route('stock.transfers.show', $transfer))
+            ->post(route('stock.transfers.receive', $transfer));
+        $tooSoon->assertRedirect(route('stock.transfers.show', $transfer));
+        $tooSoon->assertSessionHas('error');
+        $this->assertEquals(0.0, $this->stockQty($this->secondaryBranch->id));
+
+        $received = $this->actingAsAdmin()
+            ->withSession(['current_branch_id' => $this->secondaryBranch->id])
+            ->from(route('stock.transfers.show', $transfer))
+            ->post(route('stock.transfers.receive', $transfer));
+        $received->assertRedirect(route('stock.transfers.show', $transfer));
+        $received->assertSessionHas('success');
+        $this->assertSame(StockTransfer::STATUS_COMPLETED, $transfer->fresh()->status);
         $this->assertEquals(90.0, $this->stockQty($this->branch->id));
         $this->assertEquals(10.0, $this->stockQty($this->secondaryBranch->id));
 
         $second = $this->actingAsAdmin()
+            ->withSession(['current_branch_id' => $this->secondaryBranch->id])
             ->from(route('stock.transfers.show', $transfer))
-            ->post(route('stock.transfers.complete', $transfer));
+            ->post(route('stock.transfers.receive', $transfer));
 
         $second->assertRedirect(route('stock.transfers.show', $transfer));
         $second->assertSessionHas('error');
         $this->assertEquals(90.0, $this->stockQty($this->branch->id));
         $this->assertEquals(10.0, $this->stockQty($this->secondaryBranch->id));
+    }
+
+    public function test_receiving_branch_can_reject_a_transfer_and_stock_returns(): void
+    {
+        $this->actingAsAdmin()->post(route('stock.transfers.store'), [
+            'from_branch_id' => $this->branch->id,
+            'to_branch_id' => $this->secondaryBranch->id,
+            'transfer_date' => now()->toDateString(),
+            'action' => 'send',
+            'items' => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity' => 4,
+                    'unit_cost' => 50,
+                ],
+            ],
+        ])->assertRedirect();
+
+        $transfer = StockTransfer::query()->latest('id')->first();
+        $this->assertEquals(96.0, $this->stockQty($this->branch->id));
+
+        $this->actingAsAdmin()
+            ->withSession(['current_branch_id' => $this->secondaryBranch->id])
+            ->post(route('stock.transfers.reject', $transfer))
+            ->assertRedirect(route('stock.transfers.show', $transfer))
+            ->assertSessionHas('success');
+
+        $this->assertSame(StockTransfer::STATUS_REJECTED, $transfer->fresh()->status);
+        $this->assertEquals(100.0, $this->stockQty($this->branch->id));
+        $this->assertEquals(0.0, $this->stockQty($this->secondaryBranch->id));
     }
 
     public function test_unauthorized_cashier_cannot_access_settings_or_journal(): void

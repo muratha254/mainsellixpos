@@ -15,6 +15,7 @@ class StockTransfer extends Model
     public const STATUS_DRAFT = 'draft';
     public const STATUS_PENDING = 'pending';
     public const STATUS_COMPLETED = 'completed';
+    public const STATUS_REJECTED = 'rejected';
     public const STATUS_CANCELLED = 'cancelled';
 
     protected $fillable = [
@@ -61,5 +62,16 @@ class StockTransfer extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function statusLabel(): string
+    {
+        return [
+            self::STATUS_DRAFT => 'Draft',
+            self::STATUS_PENDING => 'Awaiting receipt',
+            self::STATUS_COMPLETED => 'Received',
+            self::STATUS_REJECTED => 'Rejected',
+            self::STATUS_CANCELLED => 'Cancelled',
+        ][$this->status] ?? ucfirst((string) $this->status);
     }
 }

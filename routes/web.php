@@ -338,6 +338,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/pos/hold', [PosController::class, 'hold'])
         ->middleware('permission:pos.hold')
         ->name('pos.hold');
+    Route::post('/pos/holds/{sale}/cancel', [PosController::class, 'cancelHold'])
+        ->middleware('permission:pos.hold')
+        ->name('pos.holds.cancel');
 
     // Static sales paths before /sales/{sale}
     Route::get('/sales', [SaleController::class, 'index'])

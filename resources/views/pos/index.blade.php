@@ -1349,7 +1349,10 @@
             var html = '';
             rows.forEach(function (row, i) {
                 html += '<tr><td>' + (i + 1) + '</td><td>' + escapeHtml(row.number) + '</td><td>' + escapeHtml(row.customer) + '</td><td>' + row.total + '</td><td>' + row.held_at + '</td>';
-                html += '<td><button type="button" class="btn btn-primary btn-xs sx-resume-hold" data-url="' + row.url + '">Resume</button></td></tr>';
+                html += '<td>';
+                html += '<button type="button" class="btn btn-primary btn-xs sx-resume-hold" data-url="' + row.url + '">Resume</button> ';
+                html += '<button type="button" class="btn btn-danger btn-xs sx-cancel-hold" data-id="' + row.id + '" data-url="' + row.cancel_url + '" data-number="' + escapeHtml(row.number) + '">Cancel</button>';
+                html += '</td></tr>';
             });
             $('#sx-pos-holds-rows').html(html);
         });
@@ -1408,6 +1411,35 @@
 
     $(document).on('click', '.sx-resume-hold', function () {
         loadHold($(this).data('url'));
+    });
+    $(document).on('click', '.sx-cancel-hold', function () {
+        var button = $(this);
+        var id = button.data('id');
+        var number = button.data('number') || 'This hold';
+        Swal.fire({
+            icon: 'warning',
+            title: 'Cancel this hold?',
+            text: number + ' will be removed from the hold list.',
+            showCancelButton: true,
+            confirmButtonText: 'Cancel hold',
+            cancelButtonText: 'Keep it'
+        }).then(function (result) {
+            if (!result.isConfirmed) return;
+            $.ajax({
+                url: button.data('url'),
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' }
+            }).done(function (data) {
+                if (String(holdId) === String(id)) {
+                    resetCart();
+                }
+                $('#sx-pos-hold-count').text(data.held_count || 0);
+                openHolds();
+                Swal.fire({ icon: 'success', title: 'Hold cancelled', timer: 1200, showConfirmButton: false });
+            }).fail(function (xhr) {
+                Swal.fire({ icon: 'error', title: 'Could not cancel hold', text: (xhr.responseJSON && xhr.responseJSON.message) || 'Try again.' });
+            });
+        });
     });
 
     var holdParam = new URLSearchParams(window.location.search).get('hold');

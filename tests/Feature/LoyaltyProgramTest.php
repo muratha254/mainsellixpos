@@ -34,6 +34,34 @@ class LoyaltyProgramTest extends TestCase
             ->assertSee('Not enough stock', false);
     }
 
+    public function test_a_held_sale_can_be_cancelled_from_the_hold_list(): void
+    {
+        $hold = $this->actingAsCashier()->postJson(route('pos.hold'), [
+            'customer_id' => $this->customer->id,
+            'sale_date' => now()->toDateString(),
+            'document_type' => 'pos',
+            'items' => [
+                ['product_id' => $this->product->id, 'quantity' => 1],
+            ],
+        ]);
+        $hold->assertOk();
+        $id = $hold->json('id');
+
+        $this->actingAsCashier()->get(route('pos.index'))
+            ->assertOk()
+            ->assertSee('sx-cancel-hold', false);
+
+        $this->actingAsCashier()->getJson(route('pos.holds'))
+            ->assertOk()
+            ->assertJsonFragment(['id' => $id]);
+
+        $cancel = $this->actingAsCashier()->postJson(route('pos.holds.cancel', $id));
+        $cancel->assertOk();
+        $this->assertEquals(0, $cancel->json('held_count'));
+        $this->assertNull(Sale::query()->find($id));
+        $this->assertEquals(100.0, (float) ProductBranchStock::query()->where('product_id', $this->product->id)->value('quantity'));
+    }
+
     public function test_pos_refuses_a_quantity_above_store_stock(): void
     {
         ProductBranchStock::query()->where('product_id', $this->product->id)->update(['quantity' => 5]);

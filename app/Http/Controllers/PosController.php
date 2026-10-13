@@ -187,6 +187,7 @@ class PosController extends Controller
                 'total' => number_format((float) $sale->total, 2),
                 'held_at' => optional($sale->held_at ?: $sale->created_at)->format('d-m-Y H:i'),
                 'url' => route('pos.holds.show', $sale),
+                'cancel_url' => route('pos.holds.cancel', $sale),
             ];
         }));
     }
@@ -240,6 +241,21 @@ class PosController extends Controller
 
                 return $payload;
             })->values(),
+        ]);
+    }
+
+    public function cancelHold(Sale $sale)
+    {
+        $this->authorizePermission('pos.operate');
+        abort_unless($sale->status === Sale::STATUS_HELD, 404);
+
+        DB::transaction(function () use ($sale) {
+            $sale->items()->delete();
+            $sale->delete();
+        });
+
+        return response()->json([
+            'held_count' => Sale::query()->where('status', Sale::STATUS_HELD)->count(),
         ]);
     }
 

@@ -15,6 +15,12 @@
             <div class="pos-customer-wrap">
                 <select id="sx-pos-customer" class="form-control">
                     @foreach($customers as $customer)
+                        @php
+                            $pointsLabel = rtrim(rtrim(number_format((float) $customer->loyalty_points, 2, '.', ''), '0'), '.');
+                            $customerLabel = $customer->is_walk_in
+                                ? 'WALK-IN'
+                                : trim($customer->name).'  '.($customer->phone ?: '-').'  '.$pointsLabel.' pts';
+                        @endphp
                         <option
                             value="{{ $customer->id }}"
                             data-walk-in="{{ $customer->is_walk_in ? '1' : '0' }}"
@@ -22,9 +28,7 @@
                             data-credit-used="{{ $customer->creditAmount() }}"
                             data-points="{{ number_format((float) $customer->loyalty_points, 2, '.', '') }}"
                             @if((int) $customer->id === (int) $walkInId) selected @endif
-                        >
-                            {{ $customer->is_walk_in ? 'WALK-IN' : $customer->name }}{{ $customer->phone ? ' - '.$customer->phone : '' }}@if(! $customer->is_walk_in && (float) $customer->loyalty_points > 0) ({{ rtrim(rtrim(number_format((float) $customer->loyalty_points, 2, '.', ''), '0'), '.') }} pts)@endif
-                        </option>
+                        >{{ $customerLabel }}</option>
                     @endforeach
                 </select>
                 @if($canCreateCustomer)
@@ -320,6 +324,17 @@
     var orderUrl = @json(route('pos.order'));
     var holdsUrl = @json(route('pos.holds'));
     var token = $('meta[name="csrf-token"]').attr('content');
+    function customerMenuLabel(name, phone, points) {
+        var pts = parseFloat(points);
+        if (isNaN(pts)) pts = 0;
+        var ptsText = pts.toFixed(2).replace(/\.?0+$/, '');
+        return $.trim(name) + '  ' + ($.trim(phone) || '-') + '  ' + ptsText + ' pts';
+    }
+    $('#sx-pos-customer').select2({
+        width: '100%',
+        minimumResultsForSearch: 0,
+        dropdownCssClass: 'pos-customer-dropdown'
+    });
     var cart = [];
     var discountType = 'fixed';
     var discountValue = 0;
@@ -1042,13 +1057,14 @@
         }).done(function (data) {
             var $opt = $('<option>', {
                 value: data.id,
-                text: data.name + (data.phone ? ' - ' + data.phone : ''),
+                text: customerMenuLabel(data.name, data.phone, 0),
                 selected: true
             });
             $opt.attr('data-walk-in', '0');
+            $opt.attr('data-points', '0.00');
             $opt.attr('data-credit-limit', data.credit_limit != null ? data.credit_limit : 0);
             $opt.attr('data-credit-used', data.credit_used != null ? data.credit_used : 0);
-            $('#sx-pos-customer').append($opt);
+            $('#sx-pos-customer').append($opt).trigger('change');
             updateCreditUi();
             $('#sx-pos-customer-modal').modal('hide');
         }).fail(function () {
@@ -1371,7 +1387,7 @@
                 discountType = 'fixed';
                 discountValue = parseFloat(data.discount_amount) || 0;
             }
-            if (data.customer_id) $('#sx-pos-customer').val(data.customer_id);
+            if (data.customer_id) $('#sx-pos-customer').val(String(data.customer_id)).trigger('change');
             if (data.due_date) $('#sx-pos-due').val(data.due_date);
             cart = (data.items || []).map(function (item) {
                 return {

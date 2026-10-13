@@ -24,6 +24,16 @@ class LoyaltyProgramTest extends TestCase
         $this->setUpSellixWorld();
     }
 
+    public function test_pos_customer_menu_lists_name_phone_and_points(): void
+    {
+        $customer = $this->namedCustomer(105);
+
+        $this->actingAsAdmin()->get(route('pos.index'))
+            ->assertOk()
+            ->assertSee('select2.full.js', false)
+            ->assertSee($customer->name . '  ' . $customer->phone . '  105 pts', false);
+    }
+
     public function test_pos_page_renders_with_loyalty_rules(): void
     {
         $this->actingAsAdmin()

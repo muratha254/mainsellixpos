@@ -2967,6 +2967,32 @@ body.pos-body {
     color: #777;
 }
 
+.pos-customer-wrap .select2-container {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.pos-customer-wrap .select2-container--default .select2-selection--single {
+    height: 34px;
+    border-radius: 0;
+    border-color: #ccc;
+    background: #fff;
+}
+
+.pos-customer-wrap .select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 32px;
+    color: #333;
+    padding-left: 8px;
+}
+
+.pos-customer-wrap .select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 32px;
+}
+
+.pos-customer-dropdown .select2-search__field {
+    border-radius: 0;
+}
+
 .pos-search-icon {
     position: absolute;
     left: 8px;

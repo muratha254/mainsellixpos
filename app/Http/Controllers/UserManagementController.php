@@ -8,6 +8,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Services\AuditLogger;
 use App\Services\SubscriptionLimitGuard;
+use App\Support\PermissionCatalog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -19,9 +20,16 @@ class UserManagementController extends Controller
     {
         $this->authorizePermission('users.view');
 
+        $actor = auth()->user();
+
         $users = User::query()
             ->with(['role', 'branch'])
-            ->when(auth()->user()->company_id, fn ($q) => $q->where('company_id', auth()->user()->company_id))
+            ->when($actor->company_id, fn ($q) => $q->where('company_id', $actor->company_id))
+            ->when($actor->hasRole(PermissionCatalog::BRANCH_MANAGER), function ($q) {
+                $q->whereDoesntHave('role', function ($role) {
+                    $role->where('name', PermissionCatalog::SUPER_ADMIN);
+                });
+            })
             ->orderBy('name')
             ->get();
 

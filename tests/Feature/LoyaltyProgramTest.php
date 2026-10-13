@@ -41,7 +41,8 @@ class LoyaltyProgramTest extends TestCase
             ->assertOk()
             ->assertSee('RECEIVE PAYMENT', false)
             ->assertSee('Pay with points', false)
-            ->assertSee('Not enough stock', false);
+            ->assertSee('Not enough stock', false)
+            ->assertSee("$('#sx-pos-customer').val(String(walkInId)).trigger('change');", false);
     }
 
     public function test_a_held_sale_can_be_cancelled_from_the_hold_list(): void

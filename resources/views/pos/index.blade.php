@@ -1101,6 +1101,9 @@
         }).done(function (data) {
             $('#sx-pos-hold-count').text(data.held_count || 0);
             resetCart();
+            if (walkInId) {
+                $('#sx-pos-customer').val(String(walkInId)).trigger('change');
+            }
             Swal.fire({ icon: 'success', title: 'Held', text: data.number, timer: 1400, showConfirmButton: false });
         }).fail(function (xhr) {
             Swal.fire({ icon: 'error', title: 'Hold failed', text: (xhr.responseJSON && xhr.responseJSON.message) || 'Could not hold sale.' });

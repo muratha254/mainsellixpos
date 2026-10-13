@@ -95,8 +95,14 @@ class DashboardService
         $customersInactive = Customer::query()->where('is_active', false)->count();
         $suppliersActive = Supplier::query()->where('is_active', true)->count();
         $suppliersInactive = Supplier::query()->where('is_active', false)->count();
-        $productsActive = Product::query()->where('is_active', true)->count();
-        $productsInactive = Product::query()->where('is_active', false)->count();
+        $productsActive = Product::query()
+            ->availableAtBranch($resolvedBranchId)
+            ->where('is_active', true)
+            ->count();
+        $productsInactive = Product::query()
+            ->availableAtBranch($resolvedBranchId)
+            ->where('is_active', false)
+            ->count();
 
         $lowStock = $this->lowStock($resolvedBranchId);
         $topMovers = $this->topMovers($resolvedBranchId, $monthStart, $monthEnd);

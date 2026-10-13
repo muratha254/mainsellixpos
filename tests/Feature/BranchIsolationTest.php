@@ -410,6 +410,23 @@ class BranchIsolationTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_dashboard_item_count_follows_the_active_branch(): void
+    {
+        $this->actingAsAdmin()
+            ->withSession(['current_branch_id' => $this->branch->id])
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Active: 2', false);
+
+        $this->actingAsAdmin()
+            ->withSession(['current_branch_id' => $this->secondaryBranch->id])
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Active: 1', false)
+            ->assertDontSee('Active: 2', false)
+            ->assertDontSee('Active: 3', false);
+    }
+
     public function test_super_admin_branch_choice_stays_selected(): void
     {
         $this->actingAsAdmin()

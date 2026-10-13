@@ -43,6 +43,39 @@ class DashboardController extends Controller
         session(['current_branch_id' => $branch->id]);
         app()->instance('currentBranchId', (int) $branch->id);
 
-        return back();
+        return redirect()->to($this->previousUrlForBranch((int) $branch->id));
+    }
+
+    private function previousUrlForBranch(int $branchId): string
+    {
+        $target = url()->previous();
+        $parts = parse_url($target);
+        if (! is_array($parts)) {
+            return $target;
+        }
+
+        $query = [];
+        if (! empty($parts['query'])) {
+            parse_str($parts['query'], $query);
+        }
+        if (! array_key_exists('branch_id', $query)) {
+            return $target;
+        }
+
+        $query['branch_id'] = $branchId;
+        $path = $parts['path'] ?? '/';
+        $rebuilt = '';
+        if (! empty($parts['scheme']) && ! empty($parts['host'])) {
+            $rebuilt = $parts['scheme'] . '://' . $parts['host'];
+            if (! empty($parts['port'])) {
+                $rebuilt .= ':' . $parts['port'];
+            }
+        }
+        $rebuilt .= $path . '?' . http_build_query($query);
+        if (! empty($parts['fragment'])) {
+            $rebuilt .= '#' . $parts['fragment'];
+        }
+
+        return $rebuilt;
     }
 }

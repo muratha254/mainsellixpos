@@ -50,7 +50,10 @@ class StockController extends Controller
             'activeMenu' => 'stock.manager',
             'products' => $products,
             'stock' => $stock,
-            'filters' => $request->only(['category_id', 'branch_id']),
+            'filters' => [
+                'category_id' => $request->input('category_id'),
+                'branch_id' => $branchId,
+            ],
             'canViewCost' => auth()->user()->hasPermission('products.view_cost'),
             'canCreate' => auth()->user()->hasPermission('products.create'),
             'canUpdate' => auth()->user()->hasPermission('products.update'),

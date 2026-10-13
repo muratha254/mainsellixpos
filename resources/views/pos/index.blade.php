@@ -4,14 +4,18 @@
 <div class="pos-wrap">
     <div class="pos-left">
         <div class="pos-filters">
-            <form action="{{ route('branch.switch') }}" method="post" class="pos-branch-form">
-                @csrf
-                <select name="branch_id" class="form-control" onchange="this.form.submit()">
-                    @foreach($branches as $option)
-                        <option value="{{ $option->id }}" @if(!empty($branch) && (int) $branch->id === (int) $option->id) selected @endif>{{ $option->name }}</option>
-                    @endforeach
-                </select>
-            </form>
+            @if(auth()->user()->canSwitchBranches())
+                <form action="{{ route('branch.switch') }}" method="post" class="pos-branch-form">
+                    @csrf
+                    <select name="branch_id" class="form-control" onchange="this.form.submit()">
+                        @foreach($branches as $option)
+                            <option value="{{ $option->id }}" @if(!empty($branch) && (int) $branch->id === (int) $option->id) selected @endif>{{ $option->name }}</option>
+                        @endforeach
+                    </select>
+                </form>
+            @else
+                <span class="form-control pos-branch-form">{{ optional($branch)->name ?? 'Branch' }}</span>
+            @endif
             <div class="pos-customer-wrap">
                 <select id="sx-pos-customer" class="form-control">
                     @foreach($customers as $customer)

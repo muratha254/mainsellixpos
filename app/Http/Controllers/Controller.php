@@ -38,6 +38,20 @@ class Controller extends BaseController
      */
     protected function resolveBranchId(?int $requested = null): ?int
     {
+        $user = auth()->user();
+        if ($user && $user->canSwitchBranches() && $requested) {
+            $belongs = Branch::query()
+                ->whereKey($requested)
+                ->where('company_id', $user->company_id)
+                ->exists();
+            if ($belongs) {
+                session(['current_branch_id' => $requested]);
+                app()->instance('currentBranchId', $requested);
+
+                return $requested;
+            }
+        }
+
         return $this->currentBranchId();
     }
 

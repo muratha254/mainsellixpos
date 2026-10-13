@@ -42,7 +42,7 @@
                         <label>To Branch <span class="sx-req">*</span></label>
                         <select name="to_branch_id" class="form-control" required>
                             <option value="">~~Select~~</option>
-                            @foreach($branches as $row)
+                            @foreach(($destinationBranches ?? $branches) as $row)
                                 <option value="{{ $row->id }}" @if((string) old('to_branch_id') === (string) $row->id) selected @endif>{{ $row->name }}</option>
                             @endforeach
                         </select>

@@ -52,6 +52,7 @@ class StockTransferController extends Controller
         return view('stock.transfers.create', array_merge(fleet_shared_view_data(), $this->catalogLookups(), [
             'activeMenu' => 'stock.transfers',
             'products' => $products,
+            'destinationBranches' => \App\Models\Branch::query()->where('is_active', true)->orderBy('name')->get(),
             'selectedBranchId' => $this->currentBranchId(),
             'productCosts' => $products->mapWithKeys(function (Product $product) {
                 return [$product->id => (float) $product->purchase_price];

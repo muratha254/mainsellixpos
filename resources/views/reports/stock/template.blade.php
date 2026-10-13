@@ -21,8 +21,7 @@
                 <div class="col-md-6">
                     <div class="form-group">
                         <label>Branch/Station</label>
-                        <select name="branch_id" class="form-control">
-                            <option value="">All Branches</option>
+                        <select name="branch_id" class="form-control" @if(!auth()->user()->canSwitchBranches()) disabled @endif>
                             @foreach($branches as $branch)
                                 <option value="{{ $branch->id }}" @if((string) ($branchId ?? '') === (string) $branch->id) selected @endif>{{ $branch->name }}</option>
                             @endforeach

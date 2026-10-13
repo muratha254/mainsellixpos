@@ -27,8 +27,7 @@
     <input type="date" name="from_date" id="sl-from-date" class="form-control sx-date-input" value="{{ $fromDate ?? '' }}">
     <label class="sx-date-label">To</label>
     <input type="date" name="to_date" id="sl-to-date" class="form-control sx-date-input" value="{{ $toDate ?? '' }}">
-    <select name="branch_id" id="sl-branch" class="form-control">
-        <option value="">All Branches</option>
+    <select name="branch_id" id="sl-branch" class="form-control" @if(!auth()->user()->canSwitchBranches()) disabled @endif>
         @foreach($branches as $option)
             <option value="{{ $option->id }}" @if((int) $filterBranchId === (int) $option->id) selected @endif>
                 {{ $option->name }}

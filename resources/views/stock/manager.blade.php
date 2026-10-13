@@ -32,10 +32,9 @@
             <option value="{{ $category->id }}" @if(($filters['category_id'] ?? '') == $category->id) selected @endif>{{ $category->name }}</option>
         @endforeach
     </select>
-    <select name="branch_id" class="form-control" onchange="this.form.submit()">
-        <option value="">All Branches</option>
-        @foreach($branches as $branch)
-            <option value="{{ $branch->id }}" @if(($filters['branch_id'] ?? '') == $branch->id) selected @endif>{{ $branch->name }}</option>
+    <select name="branch_id" class="form-control" onchange="this.form.submit()" @if(!auth()->user()->canSwitchBranches()) disabled @endif>
+        @foreach($branches as $option)
+            <option value="{{ $option->id }}" @if((int) ($filters['branch_id'] ?? $selectedBranchId) === (int) $option->id) selected @endif>{{ $option->name }}</option>
         @endforeach
     </select>
 </form>

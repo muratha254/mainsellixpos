@@ -93,12 +93,12 @@ class User extends Authenticatable
     }
 
     /**
-     * Company admins (including super admin) may switch the working branch.
-     * Data is always scoped to the active branch after switching.
+     * Only the company super admin may see every branch and switch between them.
+     * Everyone else stays on the branch assigned to their user.
      */
     public function canSwitchBranches(): bool
     {
-        return $this->isCompanyAdmin();
+        return $this->isSuperAdmin();
     }
 
     public function hasRole(string $role): bool

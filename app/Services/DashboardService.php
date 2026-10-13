@@ -24,8 +24,10 @@ class DashboardService
     {
         $company = $user->company;
         $branches = Branch::query()->where('is_active', true)->orderBy('name')->get();
-
-        if ($branchId && $branches->contains('id', $branchId)) {
+        if (! $user->canSwitchBranches()) {
+            $branches = $branches->where('id', $user->branch_id)->values();
+            $branch = $branches->first();
+        } elseif ($branchId && $branches->contains('id', $branchId)) {
             $branch = $branches->firstWhere('id', $branchId);
         } else {
             $currentId = session('current_branch_id', $user->branch_id);

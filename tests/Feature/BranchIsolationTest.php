@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\ProductBranchStock;
 use App\Models\Sale;
 use App\Services\InventoryService;
+use App\Support\PermissionCatalog;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Tests\Support\CreatesSellixWorld;
@@ -387,5 +388,40 @@ class BranchIsolationTest extends TestCase
         $this->actingAsCashier()
             ->post(route('branch.switch'), ['branch_id' => $this->secondaryBranch->id])
             ->assertForbidden();
+    }
+
+    public function test_branch_manager_stays_on_their_own_branch(): void
+    {
+        $manager = $this->makeUser('Branch Manager', 'manager@test.local', 'manager', PermissionCatalog::BRANCH_MANAGER);
+
+        $this->actingAs($manager->fresh(['role.permissions']))
+            ->withSession(['current_branch_id' => $this->secondaryBranch->id])
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('MAIN')
+            ->assertDontSee('WAREHOUSE');
+
+        $this->get(route('products.index'))
+            ->assertOk()
+            ->assertSee('TEST-BRANCH-A-PRODUCT')
+            ->assertDontSee('TEST-BRANCH-B-PRODUCT');
+
+        $this->post(route('branch.switch'), ['branch_id' => $this->secondaryBranch->id])
+            ->assertForbidden();
+    }
+
+    public function test_super_admin_branch_choice_stays_selected(): void
+    {
+        $this->actingAsAdmin()
+            ->get(route('sales.index', ['branch_id' => $this->secondaryBranch->id]))
+            ->assertOk()
+            ->assertDontSee('All Branches')
+            ->assertSee('WAREHOUSE')
+            ->assertSessionHas('current_branch_id', $this->secondaryBranch->id);
+
+        $this->get(route('products.index'))
+            ->assertOk()
+            ->assertSee('TEST-BRANCH-B-PRODUCT')
+            ->assertDontSee('TEST-BRANCH-A-PRODUCT');
     }
 }

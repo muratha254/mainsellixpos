@@ -19,7 +19,11 @@
                             $pointsLabel = rtrim(rtrim(number_format((float) $customer->loyalty_points, 2, '.', ''), '0'), '.');
                             $customerLabel = $customer->is_walk_in
                                 ? 'WALK-IN'
-                                : trim($customer->name).'  '.($customer->phone ?: '-').'  '.$pointsLabel.' pts';
+                                : implode(' - ', array_filter([
+                                    trim($customer->name),
+                                    $customer->phone,
+                                    $pointsLabel.' pts',
+                                ]));
                         @endphp
                         <option
                             value="{{ $customer->id }}"
@@ -328,7 +332,10 @@
         var pts = parseFloat(points);
         if (isNaN(pts)) pts = 0;
         var ptsText = pts.toFixed(2).replace(/\.?0+$/, '');
-        return $.trim(name) + '  ' + ($.trim(phone) || '-') + '  ' + ptsText + ' pts';
+        var parts = [$.trim(name)];
+        if ($.trim(phone)) parts.push($.trim(phone));
+        parts.push(ptsText + ' pts');
+        return parts.join(' - ');
     }
     $('#sx-pos-customer').select2({
         width: '100%',

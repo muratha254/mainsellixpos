@@ -10,6 +10,12 @@ class CreateStockTakesTables extends Migration
 {
     public function up()
     {
+        if (! $this->stockTakeSchemaReady()) {
+            Schema::dropIfExists('stock_take_lines');
+            Schema::dropIfExists('stock_takes');
+        }
+
+        if (! Schema::hasTable('stock_takes')) {
         Schema::create('stock_takes', function (Blueprint $table) {
             $table->id();
             $table->foreignId('company_id')->constrained()->cascadeOnDelete();
@@ -49,8 +55,9 @@ class CreateStockTakesTables extends Migration
             $table->string('notes', 500)->nullable();
             $table->timestamps();
 
-            $table->unique(['stock_take_id', 'product_id', 'product_variant_id']);
+            $table->unique(['stock_take_id', 'product_id', 'product_variant_id'], 'stock_take_lines_item_unique');
         });
+        }
 
         if (! Schema::hasTable('permissions') || ! Schema::hasTable('roles')) {
             return;
@@ -129,5 +136,20 @@ class CreateStockTakesTables extends Migration
             DB::table('permission_role')->whereIn('permission_id', $ids)->delete();
         }
         DB::table('permissions')->whereIn('id', $ids)->delete();
+    }
+
+    private function stockTakeSchemaReady(): bool
+    {
+        if (! Schema::hasTable('stock_takes') || ! Schema::hasTable('stock_take_lines')) {
+            return false;
+        }
+
+        foreach (DB::select('SHOW INDEX FROM stock_take_lines') as $index) {
+            if (($index->Key_name ?? null) === 'stock_take_lines_item_unique') {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

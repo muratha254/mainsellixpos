@@ -242,7 +242,7 @@ class CompanySettingsController extends Controller
                 'phone' => $data['phone'],
                 'tax_pin' => $data['tax_pin'] ?? null,
                 'address' => $data['address'],
-                'slug' => Str::slug($data['name']) ?: $company->slug,
+                'slug' => $this->uniqueCompanySlug($company, $data['name']),
             ])->save();
 
             $settings->setMany($company->id, [
@@ -351,7 +351,7 @@ class CompanySettingsController extends Controller
             'website', 'bank_details', 'quotation_terms', 'country', 'state', 'city', 'postcode', 'address', 'logo_path',
         ];
         $companyData = array_intersect_key($data, array_flip($companyFields));
-        $companyData['slug'] = Str::slug($companyData['name']) ?: $company->slug;
+        $companyData['slug'] = $this->uniqueCompanySlug($company, $companyData['name']);
         $company->update($companyData);
 
         $settingKeys = [
@@ -364,6 +364,25 @@ class CompanySettingsController extends Controller
         $settings->setMany($company->id, array_intersect_key($data, array_flip($settingKeys)), 'company_profile');
 
         return redirect()->route('settings.company', ['tab' => 'basic'])->with('success', 'Company profile saved.');
+    }
+
+    private function uniqueCompanySlug(Company $company, string $name): string
+    {
+        $base = Str::slug($name) ?: ($company->slug ?: 'company');
+        $slug = $base;
+        $suffix = 2;
+
+        while (
+            Company::withTrashed()
+                ->where('slug', $slug)
+                ->where('id', '!=', $company->id)
+                ->exists()
+        ) {
+            $slug = $base . '-' . $suffix;
+            $suffix++;
+        }
+
+        return $slug;
     }
 
     /**

@@ -106,6 +106,11 @@ class User extends Authenticatable
         return $this->role && strcasecmp((string) $this->role->name, $role) === 0;
     }
 
+    public function seesOwnSalesOnly(): bool
+    {
+        return $this->hasRole(PermissionCatalog::CASHIER);
+    }
+
     public function hasAnyRole(array $roles): bool
     {
         if (! $this->role) {

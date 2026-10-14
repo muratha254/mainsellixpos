@@ -40,11 +40,15 @@ class DashboardService
         $monthStart = $now->copy()->startOfMonth();
         $monthEnd = $now->copy()->endOfMonth();
         $resolvedBranchId = $branch ? $branch->id : null;
+        $sellerId = $user->seesOwnSalesOnly() ? (int) $user->id : null;
 
         $salesQuery = Sale::query()
             ->where('status', Sale::STATUS_COMPLETED)
             ->when($resolvedBranchId, function ($query) use ($resolvedBranchId) {
                 $query->where('branch_id', $resolvedBranchId);
+            })
+            ->when($sellerId, function ($query) use ($sellerId) {
+                $query->where('user_id', $sellerId);
             });
 
         $todaySales = (clone $salesQuery)
@@ -105,7 +109,7 @@ class DashboardService
             ->count();
 
         $lowStock = $this->lowStock($resolvedBranchId);
-        $topMovers = $this->topMovers($resolvedBranchId, $monthStart, $monthEnd);
+        $topMovers = $this->topMovers($resolvedBranchId, $monthStart, $monthEnd, $sellerId);
         $symbol = optional($company)->currency_symbol ?? 'Ksh';
 
         return [
@@ -132,9 +136,9 @@ class DashboardService
             'lowStock' => $lowStock,
             'lowStockCount' => $lowStock->count(),
             'topMovers' => $topMovers,
-            'categorySales' => $this->categorySales($resolvedBranchId, $monthStart, $monthEnd),
-            'pendingSales' => $this->pendingSales($resolvedBranchId),
-            'barChart' => $this->monthlyBars($resolvedBranchId, $now),
+            'categorySales' => $this->categorySales($resolvedBranchId, $monthStart, $monthEnd, $sellerId),
+            'pendingSales' => $this->pendingSales($resolvedBranchId, $sellerId),
+            'barChart' => $this->monthlyBars($resolvedBranchId, $now, $sellerId),
             'can' => [
                 'purchases' => $user->hasPermission('purchases.view'),
                 'sales' => $user->hasPermission('sales.view'),
@@ -178,7 +182,7 @@ class DashboardService
             });
     }
 
-    private function topMovers(?int $branchId, Carbon $from, Carbon $to): Collection
+    private function topMovers(?int $branchId, Carbon $from, Carbon $to, ?int $sellerId = null): Collection
     {
         return SaleItem::query()
             ->selectRaw('sale_items.product_id, sale_items.name, SUM(sale_items.quantity) as qty_sold')
@@ -189,6 +193,9 @@ class DashboardService
             ->when($branchId, function ($query) use ($branchId) {
                 $query->where('sales.branch_id', $branchId);
             })
+            ->when($sellerId, function ($query) use ($sellerId) {
+                $query->where('sales.user_id', $sellerId);
+            })
             ->whereNotNull('sale_items.product_id')
             ->groupBy('sale_items.product_id', 'sale_items.name')
             ->orderByDesc('qty_sold')
@@ -196,7 +203,7 @@ class DashboardService
             ->get();
     }
 
-    private function categorySales(?int $branchId, Carbon $from, Carbon $to): Collection
+    private function categorySales(?int $branchId, Carbon $from, Carbon $to, ?int $sellerId = null): Collection
     {
         $rows = SaleItem::query()
             ->selectRaw("COALESCE(product_categories.name, 'Uncategorized') as category_name, SUM(sale_items.line_total) as amount")
@@ -208,6 +215,9 @@ class DashboardService
             ->whereBetween('sales.sale_date', [$from, $to])
             ->when($branchId, function ($query) use ($branchId) {
                 $query->where('sales.branch_id', $branchId);
+            })
+            ->when($sellerId, function ($query) use ($sellerId) {
+                $query->where('sales.user_id', $sellerId);
             })
             ->groupByRaw("COALESCE(product_categories.name, 'Uncategorized')")
             ->orderByDesc('amount')
@@ -226,7 +236,7 @@ class DashboardService
         });
     }
 
-    private function pendingSales(?int $branchId): Collection
+    private function pendingSales(?int $branchId, ?int $sellerId = null): Collection
     {
         return Sale::query()
             ->with('customer')
@@ -234,6 +244,9 @@ class DashboardService
             ->whereIn('payment_status', [Sale::PAYMENT_UNPAID, Sale::PAYMENT_PARTIAL])
             ->when($branchId, function ($query) use ($branchId) {
                 $query->where('branch_id', $branchId);
+            })
+            ->when($sellerId, function ($query) use ($sellerId) {
+                $query->where('user_id', $sellerId);
             })
             ->orderByDesc('sale_date')
             ->limit(8)
@@ -243,7 +256,7 @@ class DashboardService
     /**
      * @return array{labels: array<int, string>, purchases: array<int, float>, sales: array<int, float>, expenses: array<int, float>}
      */
-    private function monthlyBars(?int $branchId, Carbon $now): array
+    private function monthlyBars(?int $branchId, Carbon $now, ?int $sellerId = null): array
     {
         $labels = [];
         $purchases = [];
@@ -267,6 +280,9 @@ class DashboardService
                 ->where('status', Sale::STATUS_COMPLETED)
                 ->when($branchId, function ($query) use ($branchId) {
                     $query->where('branch_id', $branchId);
+                })
+                ->when($sellerId, function ($query) use ($sellerId) {
+                    $query->where('user_id', $sellerId);
                 })
                 ->whereBetween('sale_date', [$start, $end])
                 ->sum('total'), 2);

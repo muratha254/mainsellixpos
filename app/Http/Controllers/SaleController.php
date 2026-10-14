@@ -49,6 +49,9 @@ class SaleController extends Controller
             ->when($branchId, function ($query) use ($branchId) {
                 $query->where('branch_id', $branchId);
             })
+            ->when($user->seesOwnSalesOnly(), function ($query) use ($user) {
+                $query->where('user_id', $user->id);
+            })
             ->orderByDesc('sale_date')
             ->orderByDesc('id')
             ->get();
@@ -96,6 +99,7 @@ class SaleController extends Controller
     public function show(Sale $sale)
     {
         $this->authorizePermission('sales.view');
+        $this->assertOwnSale($sale);
         abort_if(in_array($sale->status, [Sale::STATUS_HELD, Sale::STATUS_DRAFT], true), 404);
 
         $sale->load(['items.product.tax', 'customer', 'cashier', 'branch', 'payments.user', 'company', 'quotation', 'paymentPlan.items', 'paymentPlan.salesperson']);
@@ -454,6 +458,7 @@ class SaleController extends Controller
     public function payments(Sale $sale)
     {
         $this->authorizePermission('sales.view');
+        $this->assertOwnSale($sale);
 
         $sale->load(['customer', 'payments.user']);
         $methods = config('sellix.payment_methods', []);
@@ -559,6 +564,7 @@ class SaleController extends Controller
     public function print(Sale $sale, Request $request)
     {
         $this->authorizePermission('sales.view');
+        $this->assertOwnSale($sale);
         abort_unless($sale->status === Sale::STATUS_COMPLETED, 404);
 
         $mode = $request->query('mode', 'a4');
@@ -626,6 +632,7 @@ class SaleController extends Controller
     public function pdf(Sale $sale)
     {
         $this->authorizePermission('sales.view');
+        $this->assertOwnSale($sale);
         abort_unless($sale->status === Sale::STATUS_COMPLETED, 404);
 
         $sale->load(['items', 'customer', 'cashier', 'branch', 'payments', 'company']);
@@ -645,6 +652,7 @@ class SaleController extends Controller
     public function posPdf(Sale $sale)
     {
         $this->authorizePermission('sales.view');
+        $this->assertOwnSale($sale);
         abort_unless($sale->status === Sale::STATUS_COMPLETED, 404);
 
         $sale->load(['items', 'customer', 'cashier', 'payments', 'company']);
@@ -772,6 +780,15 @@ class SaleController extends Controller
         return redirect()
             ->route('sales.voids')
             ->with('success', 'Sale ' . $sale->documentNumber() . ' was cancelled.');
+    }
+
+    private function assertOwnSale(Sale $sale): void
+    {
+        $user = auth()->user();
+        abort_unless(
+            $user && (! $user->seesOwnSalesOnly() || (int) $sale->user_id === (int) $user->id),
+            403
+        );
     }
 
     /**

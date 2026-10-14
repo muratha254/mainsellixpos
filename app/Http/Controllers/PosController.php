@@ -418,6 +418,10 @@ class PosController extends Controller
     public function receipt(Sale $sale, SettingsService $settings)
     {
         $this->authorizePermission('pos.view');
+        abort_unless(
+            ! auth()->user()->seesOwnSalesOnly() || (int) $sale->user_id === (int) auth()->id(),
+            403
+        );
         abort_unless($sale->status === Sale::STATUS_COMPLETED, 404);
 
         $sale->load(['items', 'customer', 'cashier', 'payments']);

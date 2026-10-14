@@ -497,9 +497,9 @@ class LoyaltyProgramTest extends TestCase
             ->assertOk()
             ->assertSee('Total 100.00', false)
             ->assertSee('Cash', false)
-            ->assertSee('Amount given', false)
+            ->assertSee('Tendered', false)
             ->assertSee('150.00', false)
-            ->assertSee('Change given', false)
+            ->assertSee('Balance', false)
             ->assertSee('50.00', false);
     }
 

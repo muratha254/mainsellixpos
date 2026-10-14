@@ -54,8 +54,8 @@
         : max(0, $tendered - (float) $sale->total);
     $changeGiven = $change > 0.009;
     $amountGiven = $byMethod['cash'] > 0.009 ? $byMethod['cash'] : $tendered;
-    $givenLabel = $changeGiven ? 'Amount given' : 'Tendered';
-    $changeLabel = $changeGiven ? 'Change given' : 'Change';
+    $givenLabel = 'Tendered';
+    $changeLabel = $changeGiven ? 'Balance' : 'Change';
     $usedMethods = [];
     foreach ($byMethod as $method => $amount) {
         if ($method === 'cash' && $changeGiven) {

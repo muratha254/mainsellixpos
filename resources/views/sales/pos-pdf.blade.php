@@ -15,9 +15,10 @@
         .num { text-align: right; white-space: nowrap; }
         .name { text-transform: uppercase; }
         .items { table-layout: fixed; }
-        .items th { font-size: 9px; border-bottom: 1px dotted #000; padding-bottom: 3px; }
+        .items th { font-size: 9px; border-bottom: 1px dotted #000; padding-bottom: 3px; text-transform: none; }
         .sum { margin-top: 3px; border-top: 1px dotted #000; border-bottom: 1px dotted #000; }
         .sum td { font-weight: 700; padding: 3px 0; }
+        .pay .mamt { text-align: right; padding-right: 8px; }
     </style>
 </head>
 <body>
@@ -73,7 +74,7 @@
     if (in_array($pin, ['', '-', '0'], true)) {
         $pin = '';
     }
-    $showPin = $show('show_pin') && $pin !== '';
+    $showPin = $show('show_pin');
     $logoSrc = receipt_logo_src($profile);
     $showLogo = $logoSrc !== '' && ($show('show_logo') || is_file((string) ($profile['logo_pdf_path'] ?? '')));
 @endphp
@@ -94,14 +95,18 @@
         @if($showPin)
             <div>Pin No: {{ $pin }}</div>
         @endif
-        <div>Rct No: {{ $number }}</div>
-        <div>Date: {{ optional($sale->created_at)->format('d-M-Y H:i') }}</div>
+        <table>
+            <tr>
+                <td>Rct No: {{ $number }}</td>
+                <td class="num">Date: {{ optional($sale->created_at)->format('d-M-Y H:i') }}</td>
+            </tr>
+        </table>
         <div>Sold To: {{ $customerName }}</div>
     </div>
     <table class="items">
         <thead>
             <tr>
-                <th class="name">Product</th>
+                <th>Product</th>
                 <th class="num">Qty</th>
                 <th class="num">Price</th>
                 <th class="num">Amount</th>
@@ -111,7 +116,7 @@
             @foreach($sale->items as $item)
                 <tr>
                     <td class="name">{{ $item->name }}</td>
-                    <td class="num">{{ rtrim(rtrim(number_format((float) $item->quantity, 2, '.', ''), '0'), '.') }}</td>
+                    <td class="num">{{ number_format((float) $item->quantity, 1) }}</td>
                     <td class="num">{{ number_format((float) $item->unit_price, 1) }}</td>
                     <td class="num">{{ number_format((float) $item->line_total, 2) }}</td>
                 </tr>
@@ -124,28 +129,36 @@
             <td class="num">Total {{ number_format((float) $sale->total, 2) }}</td>
         </tr>
     </table>
-    <table class="pay" style="margin-top:8px;">
-        @if(count($usedMethods) === 1)
-            <tr>
-                <td>Paymode</td>
-                <td class="num">{{ $usedMethods[0]['label'] }}</td>
-            </tr>
-        @else
-            @foreach($usedMethods as $method)
-                <tr>
-                    <td>{{ $method['label'] }}</td>
-                    <td class="num">{{ number_format($method['amount'], 2) }}</td>
-                </tr>
-            @endforeach
-        @endif
+    <div style="margin-top:8px;">Paymode:</div>
+    <table class="pay">
         <tr>
+            <td>Cash</td>
+            <td class="mamt">{{ number_format($byMethod['cash'], 2) }}</td>
             <td>Tendered</td>
             <td class="num">{{ number_format($tendered, 2) }}</td>
         </tr>
         <tr>
+            <td>Mpesa</td>
+            <td class="mamt">{{ number_format($byMethod['mpesa'], 2) }}</td>
             <td>Change</td>
             <td class="num">{{ number_format($change, 2) }}</td>
         </tr>
+        <tr>
+            <td>Card</td>
+            <td class="mamt">{{ number_format($byMethod['card'], 2) }}</td>
+            <td></td>
+            <td></td>
+        </tr>
+        @foreach($usedMethods as $method)
+            @if(! in_array($method['label'], ['Cash', 'Mpesa', 'Card'], true))
+                <tr>
+                    <td>{{ $method['label'] }}</td>
+                    <td class="mamt">{{ number_format($method['amount'], 2) }}</td>
+                    <td></td>
+                    <td></td>
+                </tr>
+            @endif
+        @endforeach
     </table>
     @if($paybill !== '' || $accountNo !== '')
         <div class="center bold" style="margin-top:8px;">

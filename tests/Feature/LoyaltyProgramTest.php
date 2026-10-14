@@ -463,19 +463,21 @@ class LoyaltyProgramTest extends TestCase
         $this->company->update(['tax_pin' => null]);
         $this->actingAsAdmin()->get(route('pos.receipt', $response->json('id')))
             ->assertOk()
-            ->assertDontSee('Pin No:', false)
             ->assertSee('Rct No:', false)
             ->assertSee('Date:', false)
+            ->assertSee('Pin No:', false)
+            ->assertDontSee('P051234567X', false)
             ->assertSee('PAYBILL NO. 542542', false)
             ->assertSee('ACCOUNT NO. 202331', false)
             ->assertSee('#Pcs:', false)
             ->assertSee('Total 100.00', false)
-            ->assertSee('Paymode', false)
+            ->assertSee('Paymode:', false)
+            ->assertSee('Cash', false)
+            ->assertSee('Mpesa', false)
+            ->assertSee('Card', false)
             ->assertSee('Tendered', false)
             ->assertSee('Change', false)
-            ->assertDontSee('Mpesa', false)
-            ->assertDontSee('Card', false)
-            ->assertDontSee('1.0', false);
+            ->assertSee('1.0', false);
     }
 
     private function namedCustomer(float $points): Customer

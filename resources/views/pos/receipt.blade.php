@@ -49,12 +49,20 @@
         .items .qty { width: 14%; }
         .items .price { width: 22%; }
         .items .amount { width: 24%; }
-        .items th { font-size: 11px; border-bottom: 1px dotted #000; padding-bottom: 3px; }
+        .items th { font-size: 11px; border-bottom: 1px dotted #000; padding-bottom: 3px; text-transform: none; }
         .num { text-align: right; white-space: nowrap; }
         .name { text-transform: uppercase; word-wrap: break-word; }
+        .meta-split td { padding: 0; }
         .sum { margin-top: 3px; border-top: 1px dotted #000; border-bottom: 1px dotted #000; }
         .sum td { font-weight: 700; padding: 3px 0; }
-        .pay td { padding-top: 2px; }
+        .paymode { margin-top: 8px; }
+        .pay td { padding-top: 1px; }
+        .pay .method { width: 18%; }
+        .pay .mamt { width: 32%; text-align: right; padding-right: 8px; }
+        .pay .plabel { width: 22%; }
+        .pay .pamt { width: 28%; }
+        .paybill, .confirm { font-size: 11px; }
+        .paybill { margin-top: 8px; }
         .no-print { text-align: center; margin: 12px 0; }
         .no-print button {
             background: #c9a027;
@@ -129,7 +137,7 @@
     if (in_array($pin, ['', '-', '0'], true)) {
         $pin = '';
     }
-    $showPin = $show('show_pin') && $pin !== '';
+    $showPin = $show('show_pin');
     $logoSrc = receipt_logo_src($profile);
     $showLogo = $logoSrc !== '' && ($show('show_logo') || is_file((string) ($profile['logo_pdf_path'] ?? '')));
 @endphp
@@ -155,15 +163,19 @@
         @if($showPin)
             <div>Pin No: {{ $pin }}</div>
         @endif
-        <div>Rct No: {{ $number }}</div>
-        <div>Date: {{ optional($sale->created_at)->format('d-M-Y H:i') }}</div>
+        <table class="meta-split">
+            <tr>
+                <td>Rct No: {{ $number }}</td>
+                <td class="num">Date: {{ optional($sale->created_at)->format('d-M-Y H:i') }}</td>
+            </tr>
+        </table>
         <div>Sold To: {{ $customerName }}</div>
     </div>
 
     <table class="items">
         <thead>
             <tr>
-                <th class="name">Product</th>
+                <th>Product</th>
                 <th class="num qty">Qty</th>
                 <th class="num price">Price</th>
                 <th class="num amount">Amount</th>
@@ -172,7 +184,7 @@
         <tbody>
             @foreach($sale->items as $item)
                 @php
-                    $qty = rtrim(rtrim(number_format((float) $item->quantity, 2, '.', ''), '0'), '.');
+                    $qty = number_format((float) $item->quantity, 1);
                 @endphp
                 <tr>
                     <td class="name">{{ $item->name }}</td>
@@ -210,33 +222,40 @@
         </table>
     @endif
 
-    <div style="height:8px;"></div>
+    <div class="paymode">Paymode:</div>
     <table class="pay">
-        @if(count($usedMethods) === 1)
-            <tr>
-                <td>Paymode</td>
-                <td class="num">{{ $usedMethods[0]['label'] }}</td>
-            </tr>
-        @else
-            @foreach($usedMethods as $method)
+        <tr>
+            <td class="method">Cash</td>
+            <td class="mamt">{{ number_format($byMethod['cash'], 2) }}</td>
+            <td class="plabel">Tendered</td>
+            <td class="num pamt">{{ number_format($tendered, 2) }}</td>
+        </tr>
+        <tr>
+            <td class="method">Mpesa</td>
+            <td class="mamt">{{ number_format($byMethod['mpesa'], 2) }}</td>
+            <td class="plabel">Change</td>
+            <td class="num pamt">{{ number_format($change, 2) }}</td>
+        </tr>
+        <tr>
+            <td class="method">Card</td>
+            <td class="mamt">{{ number_format($byMethod['card'], 2) }}</td>
+            <td></td>
+            <td></td>
+        </tr>
+        @foreach($usedMethods as $method)
+            @if(! in_array($method['label'], ['Cash', 'Mpesa', 'Card'], true))
                 <tr>
-                    <td>{{ $method['label'] }}</td>
-                    <td class="num">{{ number_format($method['amount'], 2) }}</td>
+                    <td class="method">{{ $method['label'] }}</td>
+                    <td class="mamt">{{ number_format($method['amount'], 2) }}</td>
+                    <td></td>
+                    <td></td>
                 </tr>
-            @endforeach
-        @endif
-        <tr>
-            <td>Tendered</td>
-            <td class="num">{{ number_format($tendered, 2) }}</td>
-        </tr>
-        <tr>
-            <td>Change</td>
-            <td class="num">{{ number_format($change, 2) }}</td>
-        </tr>
+            @endif
+        @endforeach
     </table>
 
     @if($paybill !== '' || $accountNo !== '')
-        <div class="center bold" style="margin-top:8px;">
+        <div class="center bold paybill">
             @if($paybill !== '')PAYBILL NO. {{ $paybill }}@endif
             @if($accountNo !== '') ACCOUNT NO. {{ $accountNo }}@endif
         </div>
@@ -245,7 +264,7 @@
         <div class="center" style="margin-top:6px;">You were served by: {{ $cashier }}</div>
     @endif
     @if(! empty($options['confirm_note']))
-        <div class="center bold" style="margin-top:8px;">{{ $options['confirm_note'] }}</div>
+        <div class="center bold confirm" style="margin-top:8px;">{{ $options['confirm_note'] }}</div>
     @endif
     @if(! empty($options['vat_note']))
         <div class="center" style="margin-top:8px;">{{ $options['vat_note'] }}</div>

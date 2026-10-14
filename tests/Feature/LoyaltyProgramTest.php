@@ -480,6 +480,29 @@ class LoyaltyProgramTest extends TestCase
             ->assertSee('1.0', false);
     }
 
+    public function test_receipt_shows_amount_given_and_change_when_cash_exceeds_the_sale(): void
+    {
+        $customer = $this->namedCustomer(0);
+        $response = $this->actingAsAdmin()->postJson(route('pos.order'), array_merge(
+            $this->salePayload($customer->id, 1, 150),
+            ['payments' => [['method' => 'cash', 'amount' => 150]]]
+        ));
+        $response->assertOk();
+
+        $sale = Sale::query()->findOrFail($response->json('id'));
+        $this->assertEquals(100.0, (float) $sale->paid_amount);
+        $this->assertEquals(0.0, (float) $sale->balance);
+
+        $this->actingAsAdmin()->get(route('pos.receipt', $sale->id))
+            ->assertOk()
+            ->assertSee('Total 100.00', false)
+            ->assertSee('Cash', false)
+            ->assertSee('Amount given', false)
+            ->assertSee('150.00', false)
+            ->assertSee('Change given', false)
+            ->assertSee('50.00', false);
+    }
+
     private function namedCustomer(float $points): Customer
     {
         return Customer::query()->create([

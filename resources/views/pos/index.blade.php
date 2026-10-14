@@ -1260,8 +1260,7 @@
             amount = due;
             adjusted = true;
         }
-        var applied = method === 'cash' ? Math.min(amount, due) : amount;
-        applied = roundMoney(applied);
+        var applied = roundMoney(amount);
         if (applied <= 0) {
             return { payments: [], adjusted: adjusted, grand: due };
         }

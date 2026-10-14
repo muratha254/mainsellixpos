@@ -104,8 +104,24 @@
     }
     $methodNames = ['cash' => 'Cash', 'mpesa' => 'Mpesa', 'card' => 'Card'];
     $labels = $paymentLabels ?? config('sellix.payment_methods', []);
+    $tendered = (float) $sale->payments->sum('amount');
+    if ($tendered <= 0) {
+        $tendered = (float) $sale->paid_amount;
+    }
+    $nonCash = $tendered - $byMethod['cash'];
+    $dueAfterNonCash = max(0, (float) $sale->total - min($nonCash, (float) $sale->total));
+    $change = $byMethod['cash'] > 0
+        ? max(0, $byMethod['cash'] - $dueAfterNonCash)
+        : max(0, $tendered - (float) $sale->total);
+    $changeGiven = $change > 0.009;
+    $amountGiven = $byMethod['cash'] > 0.009 ? $byMethod['cash'] : $tendered;
+    $givenLabel = $changeGiven ? 'Amount given' : 'Tendered';
+    $changeLabel = $changeGiven ? 'Change given' : 'Change';
     $usedMethods = [];
     foreach ($byMethod as $method => $amount) {
+        if ($method === 'cash' && $changeGiven) {
+            $amount = max(0, $amount - $change);
+        }
         if ($amount > 0.009) {
             $usedMethods[] = ['label' => $methodNames[$method], 'amount' => $amount];
         }
@@ -120,15 +136,6 @@
             'amount' => $amount,
         ];
     }
-    $tendered = (float) $sale->payments->sum('amount');
-    if ($tendered <= 0) {
-        $tendered = (float) $sale->paid_amount;
-    }
-    $nonCash = $tendered - $byMethod['cash'];
-    $dueAfterNonCash = max(0, (float) $sale->total - min($nonCash, (float) $sale->total));
-    $change = $byMethod['cash'] > 0
-        ? max(0, $byMethod['cash'] - $dueAfterNonCash)
-        : max(0, $tendered - (float) $sale->total);
     $cashier = strtoupper(optional($sale->cashier)->name ?: '');
     $paybill = trim((string) ($options['paybill'] ?? ''));
     $accountNo = trim((string) ($options['account_no'] ?? ''));
@@ -224,10 +231,10 @@
                 <td class="method">{{ $method['label'] }}</td>
                 <td class="mamt">{{ number_format($method['amount'], 2) }}</td>
                 @if($index === 0)
-                    <td class="plabel">Tendered</td>
-                    <td class="num pamt">{{ number_format($tendered, 2) }}</td>
+                    <td class="plabel">{{ $givenLabel }}</td>
+                    <td class="num pamt">{{ number_format($changeGiven ? $amountGiven : $tendered, 2) }}</td>
                 @elseif($index === 1)
-                    <td class="plabel">Change</td>
+                    <td class="plabel">{{ $changeLabel }}</td>
                     <td class="num pamt">{{ number_format($change, 2) }}</td>
                 @else
                     <td></td>
@@ -239,15 +246,15 @@
             <tr>
                 <td class="method"></td>
                 <td class="mamt"></td>
-                <td class="plabel">Tendered</td>
-                <td class="num pamt">{{ number_format($tendered, 2) }}</td>
+                <td class="plabel">{{ $givenLabel }}</td>
+                <td class="num pamt">{{ number_format($changeGiven ? $amountGiven : $tendered, 2) }}</td>
             </tr>
         @endif
         @if(count($usedMethods) < 2)
             <tr>
                 <td class="method"></td>
                 <td class="mamt"></td>
-                <td class="plabel">Change</td>
+                <td class="plabel">{{ $changeLabel }}</td>
                 <td class="num pamt">{{ number_format($change, 2) }}</td>
             </tr>
         @endif

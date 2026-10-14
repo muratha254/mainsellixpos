@@ -465,7 +465,7 @@ class LoyaltyProgramTest extends TestCase
             ->assertOk()
             ->assertSee('Rct No:', false)
             ->assertSee('Date:', false)
-            ->assertSee('Pin No:', false)
+            ->assertDontSee('Pin No:', false)
             ->assertDontSee('P051234567X', false)
             ->assertSee('PAYBILL NO. 542542', false)
             ->assertSee('ACCOUNT NO. 202331', false)

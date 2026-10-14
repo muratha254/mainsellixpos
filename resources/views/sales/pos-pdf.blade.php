@@ -19,9 +19,6 @@
         .sum { margin-top: 3px; border-top: 1px dotted #000; border-bottom: 1px dotted #000; }
         .sum td { font-weight: 700; padding: 3px 0; }
         .pay .mamt { text-align: right; padding-right: 8px; }
-        .meta-split td { white-space: nowrap; }
-        .meta-split .rct { width: 1%; }
-        .meta-split .when { text-align: right; }
     </style>
 </head>
 <body>
@@ -77,7 +74,7 @@
     if (in_array($pin, ['', '-', '0'], true)) {
         $pin = '';
     }
-    $showPin = $show('show_pin');
+    $showPin = $show('show_pin') && $pin !== '';
     $logoSrc = receipt_logo_src($profile);
     $showLogo = $logoSrc !== '' && ($show('show_logo') || is_file((string) ($profile['logo_pdf_path'] ?? '')));
 @endphp
@@ -98,12 +95,8 @@
         @if($showPin)
             <div>Pin No: {{ $pin }}</div>
         @endif
-        <table class="meta-split">
-            <tr>
-                <td class="rct">Rct No: {{ $number }}</td>
-                <td class="when">Date: {{ optional($sale->created_at)->format('d-M-Y H:i') }}</td>
-            </tr>
-        </table>
+        <div>Rct No: {{ $number }}</div>
+        <div>Date: {{ optional($sale->created_at)->format('d-M-Y H:i') }}</div>
         <div>Sold To: {{ $customerName }}</div>
     </div>
     <table class="items">

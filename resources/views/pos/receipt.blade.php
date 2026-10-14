@@ -52,7 +52,10 @@
         .items th { font-size: 11px; border-bottom: 1px dotted #000; padding-bottom: 3px; text-transform: none; }
         .num { text-align: right; white-space: nowrap; }
         .name { text-transform: uppercase; word-wrap: break-word; }
-        .meta-split td { padding: 0; }
+        .meta-split { width: 100%; }
+        .meta-split td { padding: 0; white-space: nowrap; vertical-align: baseline; }
+        .meta-split .rct { width: 1%; }
+        .meta-split .when { text-align: right; }
         .sum { margin-top: 3px; border-top: 1px dotted #000; border-bottom: 1px dotted #000; }
         .sum td { font-weight: 700; padding: 3px 0; }
         .paymode { margin-top: 8px; }
@@ -165,8 +168,8 @@
         @endif
         <table class="meta-split">
             <tr>
-                <td>Rct No: {{ $number }}</td>
-                <td class="num">Date: {{ optional($sale->created_at)->format('d-M-Y H:i') }}</td>
+                <td class="rct">Rct No: {{ $number }}</td>
+                <td class="when">Date: {{ optional($sale->created_at)->format('d-M-Y H:i') }}</td>
             </tr>
         </table>
         <div>Sold To: {{ $customerName }}</div>
@@ -224,34 +227,38 @@
 
     <div class="paymode">Paymode:</div>
     <table class="pay">
-        <tr>
-            <td class="method">Cash</td>
-            <td class="mamt">{{ number_format($byMethod['cash'], 2) }}</td>
-            <td class="plabel">Tendered</td>
-            <td class="num pamt">{{ number_format($tendered, 2) }}</td>
-        </tr>
-        <tr>
-            <td class="method">Mpesa</td>
-            <td class="mamt">{{ number_format($byMethod['mpesa'], 2) }}</td>
-            <td class="plabel">Change</td>
-            <td class="num pamt">{{ number_format($change, 2) }}</td>
-        </tr>
-        <tr>
-            <td class="method">Card</td>
-            <td class="mamt">{{ number_format($byMethod['card'], 2) }}</td>
-            <td></td>
-            <td></td>
-        </tr>
-        @foreach($usedMethods as $method)
-            @if(! in_array($method['label'], ['Cash', 'Mpesa', 'Card'], true))
-                <tr>
-                    <td class="method">{{ $method['label'] }}</td>
-                    <td class="mamt">{{ number_format($method['amount'], 2) }}</td>
+        @foreach($usedMethods as $index => $method)
+            <tr>
+                <td class="method">{{ $method['label'] }}</td>
+                <td class="mamt">{{ number_format($method['amount'], 2) }}</td>
+                @if($index === 0)
+                    <td class="plabel">Tendered</td>
+                    <td class="num pamt">{{ number_format($tendered, 2) }}</td>
+                @elseif($index === 1)
+                    <td class="plabel">Change</td>
+                    <td class="num pamt">{{ number_format($change, 2) }}</td>
+                @else
                     <td></td>
                     <td></td>
-                </tr>
-            @endif
+                @endif
+            </tr>
         @endforeach
+        @if(count($usedMethods) === 0)
+            <tr>
+                <td class="method"></td>
+                <td class="mamt"></td>
+                <td class="plabel">Tendered</td>
+                <td class="num pamt">{{ number_format($tendered, 2) }}</td>
+            </tr>
+        @endif
+        @if(count($usedMethods) < 2)
+            <tr>
+                <td class="method"></td>
+                <td class="mamt"></td>
+                <td class="plabel">Change</td>
+                <td class="num pamt">{{ number_format($change, 2) }}</td>
+            </tr>
+        @endif
     </table>
 
     @if($paybill !== '' || $accountNo !== '')

@@ -473,8 +473,8 @@ class LoyaltyProgramTest extends TestCase
             ->assertSee('Total 100.00', false)
             ->assertSee('Paymode:', false)
             ->assertSee('Cash', false)
-            ->assertSee('Mpesa', false)
-            ->assertSee('Card', false)
+            ->assertDontSee('Mpesa', false)
+            ->assertDontSee('Card', false)
             ->assertSee('Tendered', false)
             ->assertSee('Change', false)
             ->assertSee('1.0', false);

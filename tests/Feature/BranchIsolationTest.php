@@ -342,6 +342,45 @@ class BranchIsolationTest extends TestCase
         $this->assertSame(10.0, $this->stockQty($this->branch->id, $this->productA->id));
     }
 
+    public function test_scanning_a_code_from_another_branch_stocks_that_item_here(): void
+    {
+        $this->productA->forceFill(['barcode' => $this->productA->sku])->save();
+
+        $this->actingAsAdmin()
+            ->withSession(['current_branch_id' => $this->secondaryBranch->id])
+            ->post(route('products.store'), [
+                'name' => 'Scanned at warehouse',
+                'sku' => $this->productA->sku,
+                'barcode' => $this->productA->sku,
+                'opening_stock' => 6,
+                'opening_stock_unit' => 'base',
+            ])
+            ->assertRedirect(route('products.index'))
+            ->assertSessionHas('success');
+
+        $this->assertSame(1, Product::query()->where('sku', $this->productA->sku)->count());
+        $this->assertSame(6.0, $this->stockQty($this->secondaryBranch->id, $this->productA->id));
+        $this->assertSame(10.0, $this->stockQty($this->branch->id, $this->productA->id));
+
+        $this->actingAsAdmin()
+            ->withSession(['current_branch_id' => $this->secondaryBranch->id])
+            ->get(route('products.index'))
+            ->assertOk()
+            ->assertSee('TEST-BRANCH-A-PRODUCT');
+
+        $this->actingAsAdmin()
+            ->withSession(['current_branch_id' => $this->secondaryBranch->id])
+            ->post(route('products.store'), [
+                'name' => 'Scanned again',
+                'sku' => $this->productA->sku,
+                'barcode' => $this->productA->sku,
+                'opening_stock' => 1,
+            ])
+            ->assertSessionHasErrors(['sku', 'barcode']);
+
+        $this->assertSame(6.0, $this->stockQty($this->secondaryBranch->id, $this->productA->id));
+    }
+
     public function test_non_admin_cannot_see_other_branch_sales_or_stock(): void
     {
         $otherCustomer = Customer::query()->withoutGlobalScope('branch')->create([

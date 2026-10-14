@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\Product;
 use App\Models\ProductBatch;
 use App\Models\ProductBranchStock;
+use App\Models\ProductUnit;
 use App\Models\StockMovement;
 use App\Services\AuditLogger;
 use App\Services\InventoryService;
@@ -96,6 +97,15 @@ class ProductController extends Controller
     {
         $this->authorizePermission('products.create');
 
+        $branchId = $this->currentBranchId();
+        abort_unless($branchId, 422, 'Select an active branch before creating items.');
+        $this->assertBranchAccess($branchId);
+
+        $existing = $this->stockExistingCodeAtBranch($request, $inventory, $audit, $conversion, (int) $branchId);
+        if ($existing) {
+            return $existing;
+        }
+
         $data = $this->validated($request);
         $data['company_id'] = auth()->user()->company_id;
         $data['sku'] = $data['sku'] ?: null;
@@ -122,10 +132,6 @@ class ProductController extends Controller
 
         $product = Product::query()->create($data);
         $conversion->syncSellingUnits($product, is_array($sellingUnits) ? $sellingUnits : [], (int) $product->company_id);
-
-        $branchId = $this->currentBranchId();
-        abort_unless($branchId, 422, 'Select an active branch before creating items.');
-        $this->assertBranchAccess($branchId);
 
         $openingBase = $this->openingToBase($product->fresh(['purchaseUnit', 'unit']), $opening, $openingUnit, $conversion);
 
@@ -756,6 +762,107 @@ class ProductController extends Controller
             403,
             'This item is not available at the active branch.'
         );
+    }
+
+    /**
+     * A scanned code that already belongs to the company is stocked at this
+     * branch instead of being rejected as a duplicate item.
+     */
+    private function stockExistingCodeAtBranch(
+        Request $request,
+        InventoryService $inventory,
+        AuditLogger $audit,
+        UnitConversionService $conversion,
+        int $branchId
+    ) {
+        $codes = array_values(array_unique(array_filter([
+            trim((string) $request->input('sku')),
+            trim((string) $request->input('barcode')),
+        ], function ($code) {
+            return $code !== '';
+        })));
+
+        if ($codes === []) {
+            return null;
+        }
+
+        $products = Product::query()
+            ->where(function ($query) use ($codes) {
+                $query->whereIn('sku', $codes)->orWhereIn('barcode', $codes);
+            })
+            ->get();
+
+        $unitProductIds = ProductUnit::query()
+            ->whereIn('barcode', $codes)
+            ->pluck('product_id');
+        if ($unitProductIds->isNotEmpty()) {
+            $products = $products->concat(Product::query()->whereIn('id', $unitProductIds)->get())->unique('id')->values();
+        }
+
+        if ($products->isEmpty()) {
+            return null;
+        }
+
+        if ($products->count() > 1) {
+            return back()->withInput()->with('error', 'That code matches more than one item. Use the item that already has this barcode.');
+        }
+
+        $product = $products->first();
+        if ($product->isAvailableAtBranch($branchId)) {
+            $errors = [];
+            if (trim((string) $request->input('sku')) !== '') {
+                $errors['sku'] = 'This code is already used at this branch.';
+            }
+            if (trim((string) $request->input('barcode')) !== '') {
+                $errors['barcode'] = 'This code is already used at this branch.';
+            }
+
+            return back()->withInput()->withErrors($errors);
+        }
+
+        $request->validate([
+            'opening_stock' => 'nullable|numeric',
+            'opening_stock_unit' => 'nullable|in:base,purchase',
+        ]);
+
+        $opening = (float) $request->input('opening_stock', 0);
+        $openingUnit = $this->openingUnitMode($request);
+        $product->load(['purchaseUnit', 'unit']);
+        $openingBase = $this->openingToBase($product, $opening, $openingUnit, $conversion);
+
+        try {
+            $this->ensureBranchStock($product, $branchId);
+            $this->applyOpeningStock(
+                $inventory,
+                $product,
+                $branchId,
+                $openingBase,
+                StockMovement::OPENING,
+                $this->openingNote($opening, $openingUnit, $product, $conversion)
+            );
+            $this->recordBatch($product, $branchId, $openingBase);
+        } catch (NegativeStockException $e) {
+            ProductBranchStock::query()
+                ->withoutGlobalScope('company')
+                ->withoutGlobalScope('branch')
+                ->where('product_id', $product->id)
+                ->where('branch_id', $branchId)
+                ->where('quantity', 0)
+                ->delete();
+
+            return back()->withInput()->with('error', $e->getMessage());
+        }
+
+        $audit->record('update', 'products', $product, null, [
+            'branch_id' => $branchId,
+            'opening_stock' => $openingBase,
+        ]);
+
+        $message = $opening == 0.0
+            ? $product->name . ' is now available at this branch.'
+            : $product->name . ' is now stocked at this branch.';
+
+        return redirect()->route('products.index')->with('success', $message);
     }
 
     private function ensureBranchStock(Product $product, int $branchId): void

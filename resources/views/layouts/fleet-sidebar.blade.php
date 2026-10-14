@@ -8,7 +8,7 @@
 
     $productOpen = in_array($active, [
         'products.create', 'products.index', 'products.labels', 'products.prices',
-        'stock.manager', 'stock.alert', 'stock.issued', 'stock.conversion', 'stock.transfers',
+        'stock.manager', 'stock.alert', 'stock.issued', 'stock.conversion', 'stock.transfers', 'stock.takes',
         'categories.index', 'brands.index', 'units.index',
     ], true);
     $stockOpen = ['stock.manager', 'stock.alert', 'stock.issued', 'stock.conversion', 'stock.transfers'];
@@ -63,6 +63,7 @@
                 ['key' => 'products.create', 'label' => 'New Item', 'icon' => 'fa-plus', 'url' => route('products.create'), 'show' => $can('products.create')],
                 ['key' => 'products.index', 'label' => 'Items List', 'icon' => 'fa-list', 'url' => route('products.index'), 'show' => $can('products.view')],
                 ['key' => 'stock.manager', 'label' => 'Stock Manager', 'icon' => 'fa-th-list', 'url' => route('stock.manager'), 'show' => $can('inventory.view')],
+                ['key' => 'stock.takes', 'label' => 'Stock Take', 'icon' => 'fa-check-square-o', 'url' => route('stock.takes.index'), 'show' => $can('stocktake.view')],
                 ['key' => 'stock.transfers', 'label' => 'Stock Transfers', 'icon' => 'fa-exchange', 'url' => route('stock.transfers.index'), 'show' => $can('inventory.transfer') || $can('inventory.view')],
                 ['key' => 'categories.index', 'label' => 'Categories List', 'icon' => 'fa-list-ul', 'url' => route('categories.index'), 'show' => $can('categories.view')],
                 ['key' => 'brands.index', 'label' => 'Brands List', 'icon' => 'fa-list-ul', 'url' => route('brands.index'), 'show' => $can('brands.view')],

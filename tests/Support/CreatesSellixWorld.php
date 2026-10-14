@@ -79,11 +79,13 @@ trait CreatesSellixWorld
         ]);
 
         foreach (PermissionCatalog::permissions() as $name => $meta) {
-            Permission::query()->create([
-                'name' => $name,
-                'display_name' => $meta['label'],
-                'module' => $meta['module'],
-            ]);
+            Permission::query()->firstOrCreate(
+                ['name' => $name],
+                [
+                    'display_name' => $meta['label'],
+                    'module' => $meta['module'],
+                ]
+            );
         }
 
         $permissionIds = Permission::query()->pluck('id', 'name');

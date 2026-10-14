@@ -13,6 +13,7 @@ use App\Http\Controllers\SaleReturnController;
 use App\Http\Controllers\OrderScreenController;
 use App\Http\Controllers\PurchaseReturnController;
 use App\Http\Controllers\StockController;
+use App\Http\Controllers\StockTakeController;
 use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\CustomerController;
@@ -261,6 +262,39 @@ Route::middleware('auth')->group(function () {
     Route::get('/stock/transfers/{transfer}', [StockTransferController::class, 'show'])
         ->middleware('permission:inventory.view')
         ->name('stock.transfers.show');
+    Route::get('/stock/takes', [StockTakeController::class, 'index'])
+        ->middleware('permission:stocktake.view')
+        ->name('stock.takes.index');
+    Route::get('/stock/takes/create', [StockTakeController::class, 'create'])
+        ->middleware('permission:stocktake.create')
+        ->name('stock.takes.create');
+    Route::post('/stock/takes', [StockTakeController::class, 'store'])
+        ->middleware('permission:stocktake.create')
+        ->name('stock.takes.store');
+    Route::get('/stock/takes/{stockTake}/excel', [StockTakeController::class, 'excel'])
+        ->middleware('permission:stocktake.download')
+        ->name('stock.takes.excel');
+    Route::get('/stock/takes/{stockTake}/pdf', [StockTakeController::class, 'pdf'])
+        ->middleware('permission:stocktake.download')
+        ->name('stock.takes.pdf');
+    Route::post('/stock/takes/{stockTake}/upload', [StockTakeController::class, 'upload'])
+        ->middleware('permission:stocktake.upload')
+        ->name('stock.takes.upload');
+    Route::post('/stock/takes/{stockTake}/submit', [StockTakeController::class, 'submit'])
+        ->middleware('permission:stocktake.upload')
+        ->name('stock.takes.submit');
+    Route::post('/stock/takes/{stockTake}/approve', [StockTakeController::class, 'approve'])
+        ->middleware('permission:stocktake.approve')
+        ->name('stock.takes.approve');
+    Route::post('/stock/takes/{stockTake}/reconcile', [StockTakeController::class, 'reconcile'])
+        ->middleware('permission:stocktake.reconcile')
+        ->name('stock.takes.reconcile');
+    Route::post('/stock/takes/{stockTake}/cancel', [StockTakeController::class, 'cancel'])
+        ->middleware('permission:stocktake.cancel')
+        ->name('stock.takes.cancel');
+    Route::get('/stock/takes/{stockTake}', [StockTakeController::class, 'show'])
+        ->middleware('permission:stocktake.view')
+        ->name('stock.takes.show');
     Route::post('/stock/{product}/adjust', [StockController::class, 'adjust'])
         ->middleware('permission:inventory.adjust')
         ->name('stock.adjust');

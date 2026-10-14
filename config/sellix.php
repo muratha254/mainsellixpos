@@ -22,6 +22,7 @@ return [
         'journal' => 'JE-',
         'credit_note' => 'CN-',
         'stock_transfer' => 'ST-',
+        'stock_take' => 'STK-',
         'payroll' => 'PRN-',
         'hr_payment' => 'HRP-',
     ],

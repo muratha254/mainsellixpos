@@ -94,6 +94,20 @@ class PermissionCatalog
 
             'inventory.allow_negative' => ['module' => 'inventory', 'label' => 'Allow negative stock'],
 
+            'stocktake.view' => ['module' => 'inventory', 'label' => 'View stock take'],
+
+            'stocktake.create' => ['module' => 'inventory', 'label' => 'Create stock take'],
+
+            'stocktake.download' => ['module' => 'inventory', 'label' => 'Download stock take sheets'],
+
+            'stocktake.upload' => ['module' => 'inventory', 'label' => 'Upload stock take sheets'],
+
+            'stocktake.approve' => ['module' => 'inventory', 'label' => 'Approve stock take'],
+
+            'stocktake.reconcile' => ['module' => 'inventory', 'label' => 'Reconcile stock take'],
+
+            'stocktake.cancel' => ['module' => 'inventory', 'label' => 'Cancel stock take'],
+
 
 
             'sales.view' => ['module' => 'sales', 'label' => 'View sales'],
@@ -326,6 +340,8 @@ class PermissionCatalog
 
                     'inventory.view', 'inventory.adjust', 'inventory.transfer',
 
+                    'stocktake.view', 'stocktake.create', 'stocktake.download', 'stocktake.upload', 'stocktake.approve', 'stocktake.reconcile', 'stocktake.cancel',
+
                     'sales.view', 'sales.create', 'sales.update', 'sales.return', 'sales.credit_note', 'sales.void',
 
                     'sales.print_invoice', 'sales.print_receipt', 'sales.delivery_note',
@@ -403,6 +419,8 @@ class PermissionCatalog
                     'categories.view', 'categories.manage', 'brands.view', 'brands.manage', 'units.view', 'units.manage',
 
                     'inventory.view', 'inventory.adjust', 'inventory.transfer',
+
+                    'stocktake.view', 'stocktake.create', 'stocktake.download', 'stocktake.upload', 'stocktake.approve', 'stocktake.reconcile', 'stocktake.cancel',
 
                     'purchases.view', 'purchases.create', 'purchases.update', 'purchases.receive', 'purchases.return',
 

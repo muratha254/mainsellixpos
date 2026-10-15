@@ -366,6 +366,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/pos/catalog', [PosController::class, 'catalog'])->name('pos.catalog');
         Route::get('/pos/search', [PosController::class, 'search'])->name('pos.search');
         Route::get('/pos/holds', [PosController::class, 'holds'])->name('pos.holds');
+        Route::get('/pos/holds/{sale}/print', [PosController::class, 'printHold'])->name('pos.holds.print');
         Route::get('/pos/holds/{sale}', [PosController::class, 'showHold'])->name('pos.holds.show');
         Route::get('/pos/sales/{sale}/receipt', [PosController::class, 'receipt'])->name('pos.receipt');
     });

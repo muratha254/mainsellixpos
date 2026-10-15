@@ -84,6 +84,7 @@
 </head>
 <body>
 @php
+    $quote = ! empty($quote);
     $options = $receipt ?? [];
     $show = function (string $key) use ($options) {
         return ! empty($options[$key]);
@@ -163,13 +164,13 @@
     @if($show('show_email') && ! empty($profile['companyEmail']) && $profile['companyEmail'] !== '-')
         <div class="center">{{ $profile['companyEmail'] }}</div>
     @endif
-    <div class="center title">{{ $options['heading'] ?? 'Original Cash Sale Receipt' }}</div>
+    <div class="center title">{{ $quote ? 'Price Quotation' : ($options['heading'] ?? 'Original Cash Sale Receipt') }}</div>
 
     <div class="meta">
         @if($showPin)
             <div>Pin No: {{ $pin }}</div>
         @endif
-        <div>Rct No: {{ $number }}</div>
+        <div>{{ $quote ? 'Hold No' : 'Rct No' }}: {{ $number }}</div>
         <div>Date: {{ optional($sale->created_at)->format('d-M-Y H:i') }}</div>
         <div>Sold To: {{ $customerName }}</div>
     </div>
@@ -224,6 +225,9 @@
         </table>
     @endif
 
+    @if($quote)
+        <div class="center bold" style="margin-top:8px;">NOT YET PAID</div>
+    @else
     <div class="paymode">Paymode:</div>
     <table class="pay">
         @foreach($usedMethods as $index => $method)
@@ -259,6 +263,7 @@
             </tr>
         @endif
     </table>
+    @endif
 
     @if($paybill !== '' || $accountNo !== '')
         <div class="center bold paybill">
@@ -269,7 +274,7 @@
     @if($cashier !== '')
         <div class="center" style="margin-top:6px;">You were served by: {{ $cashier }}</div>
     @endif
-    @if(! empty($options['confirm_note']))
+    @if(! $quote && ! empty($options['confirm_note']))
         <div class="center bold confirm" style="margin-top:8px;">{{ $options['confirm_note'] }}</div>
     @endif
     @if(! empty($options['vat_note']))
@@ -280,7 +285,7 @@
     @endif
 
     <div class="no-print">
-        <button type="button" onclick="window.print()">Print Receipt</button>
+        <button type="button" onclick="window.print()">{{ $quote ? 'Print prices' : 'Print Receipt' }}</button>
     </div>
 </div>
 <script>

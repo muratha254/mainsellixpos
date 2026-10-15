@@ -187,6 +187,7 @@ class PosController extends Controller
                 'total' => number_format((float) $sale->total, 2),
                 'held_at' => optional($sale->held_at ?: $sale->created_at)->format('d-m-Y H:i'),
                 'url' => route('pos.holds.show', $sale),
+                'print_url' => route('pos.holds.print', $sale),
                 'cancel_url' => route('pos.holds.cancel', $sale),
             ];
         }));
@@ -269,6 +270,7 @@ class PosController extends Controller
         return response()->json([
             'id' => $sale->id,
             'number' => $sale->number,
+            'print_url' => route('pos.holds.print', $sale),
             'held_count' => Sale::query()->where('status', Sale::STATUS_HELD)->count(),
         ]);
     }
@@ -415,15 +417,34 @@ class PosController extends Controller
         ]);
     }
 
+    public function printHold(Sale $sale, SettingsService $settings)
+    {
+        $this->authorizePermission('pos.view');
+        $this->assertOwnSale($sale);
+        abort_unless($sale->status === Sale::STATUS_HELD, 404);
+
+        return $this->receiptView($sale, $settings, true);
+    }
+
     public function receipt(Sale $sale, SettingsService $settings)
     {
         $this->authorizePermission('pos.view');
+        $this->assertOwnSale($sale);
+        abort_unless($sale->status === Sale::STATUS_COMPLETED, 404);
+
+        return $this->receiptView($sale, $settings, false);
+    }
+
+    private function assertOwnSale(Sale $sale): void
+    {
         abort_unless(
             ! auth()->user()->seesOwnSalesOnly() || (int) $sale->user_id === (int) auth()->id(),
             403
         );
-        abort_unless($sale->status === Sale::STATUS_COMPLETED, 404);
+    }
 
+    private function receiptView(Sale $sale, SettingsService $settings, bool $quote)
+    {
         $sale->load(['items', 'customer', 'cashier', 'payments']);
         $paper = $settings->get((int) $sale->company_id, 'receipt_paper_size', '80mm');
         if (! in_array($paper, ['58mm', '80mm'], true)) {
@@ -436,6 +457,7 @@ class PosController extends Controller
             'profile' => fleet_company_profile(),
             'receipt' => receipt_print_options((int) $sale->company_id),
             'paymentLabels' => config('sellix.payment_methods', []),
+            'quote' => $quote,
         ]);
     }
 

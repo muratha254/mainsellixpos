@@ -125,32 +125,70 @@
                 <i class="fa fa-money"></i> RECEIVE PAYMENT
             </div>
             <div class="pos-pay-sheet">
-                <div class="pos-pay-label">Payment method</div>
-                <div class="pos-pay-methods" role="group" aria-label="Payment method">
-                    <button type="button" class="pos-pay-method is-active" data-method="cash">
-                        <i class="fa fa-money"></i>
-                        <span>Cash</span>
-                    </button>
-                    <button type="button" class="pos-pay-method" data-method="mpesa">
-                        <i class="fa fa-mobile"></i>
-                        <span>M-Pesa</span>
-                    </button>
-                    <button type="button" class="pos-pay-method" data-method="card">
-                        <i class="fa fa-credit-card"></i>
-                        <span>Card</span>
-                    </button>
+                <div id="sx-pay-single-methods">
+                    <div class="pos-pay-label">Payment method</div>
+                    <div class="pos-pay-methods" role="group" aria-label="Payment method">
+                        <button type="button" class="pos-pay-method is-active" data-method="cash">
+                            <i class="fa fa-money"></i>
+                            <span>Cash</span>
+                        </button>
+                        <button type="button" class="pos-pay-method" data-method="mpesa">
+                            <i class="fa fa-mobile"></i>
+                            <span>M-Pesa</span>
+                        </button>
+                        <button type="button" class="pos-pay-method" data-method="card">
+                            <i class="fa fa-credit-card"></i>
+                            <span>Card</span>
+                        </button>
+                    </div>
                 </div>
                 <input type="hidden" id="sx-pay-method" value="cash">
 
-                <label class="pos-pay-label" id="sx-pay-received-label" for="sx-pay-received-input">Cash received</label>
-                <div class="pos-pay-amount-box">
-                    <span>KSh</span>
-                    <input type="number" step="0.01" min="0" id="sx-pay-received-input" value="0.00" inputmode="decimal">
+                <button type="button" id="sx-pay-split" class="pos-pay-points">
+                    <i class="fa fa-columns"></i>
+                    <span>
+                        <strong>Split payment</strong>
+                        <small>Cash, M-Pesa and card together</small>
+                    </span>
+                </button>
+
+                <div id="sx-pay-single">
+                    <label class="pos-pay-label" id="sx-pay-received-label" for="sx-pay-received-input">Cash received</label>
+                    <div class="pos-pay-amount-box">
+                        <span>KSh</span>
+                        <input type="number" step="0.01" min="0" id="sx-pay-received-input" value="0.00" inputmode="decimal">
+                    </div>
+
+                    <div class="pos-pay-line">
+                        <span>Change to return</span>
+                        <strong class="is-green" id="sx-pay-change">KSh 0.00</strong>
+                    </div>
                 </div>
 
-                <div class="pos-pay-line">
-                    <span>Change to return</span>
-                    <strong class="is-green" id="sx-pay-change">KSh 0.00</strong>
+                <div id="sx-pay-split-fields" hidden>
+                    <label class="pos-pay-label" for="sx-pay-cash">Cash</label>
+                    <div class="pos-pay-amount-box">
+                        <span>KSh</span>
+                        <input type="number" step="0.01" min="0" id="sx-pay-cash" value="0.00" inputmode="decimal">
+                    </div>
+                    <label class="pos-pay-label" for="sx-pay-mpesa">M-Pesa</label>
+                    <div class="pos-pay-amount-box">
+                        <span>KSh</span>
+                        <input type="number" step="0.01" min="0" id="sx-pay-mpesa" value="0.00" inputmode="decimal">
+                    </div>
+                    <label class="pos-pay-label" for="sx-pay-card">Card</label>
+                    <div class="pos-pay-amount-box">
+                        <span>KSh</span>
+                        <input type="number" step="0.01" min="0" id="sx-pay-card" value="0.00" inputmode="decimal">
+                    </div>
+                    <div class="pos-pay-line">
+                        <span>Still to pay</span>
+                        <strong id="sx-pay-still">KSh 0.00</strong>
+                    </div>
+                    <div class="pos-pay-line">
+                        <span>Change to return</span>
+                        <strong class="is-green" id="sx-pay-split-change">KSh 0.00</strong>
+                    </div>
                 </div>
 
                 <button type="button" id="sx-pay-with-points" class="pos-pay-points">
@@ -670,8 +708,10 @@
     function clearPaymentFields() {
         payAmountEdited = false;
         $('#sx-pay-received-input').val('0.00');
+        $('#sx-pay-cash, #sx-pay-mpesa, #sx-pay-card').val('0.00');
         $('#sx-pay-note').val('');
         setPayMethod('cash');
+        setSplitPay(false);
     }
 
     function resetCart() {
@@ -1104,7 +1144,18 @@
             if (walkInId) {
                 $('#sx-pos-customer').val(String(walkInId)).trigger('change');
             }
-            Swal.fire({ icon: 'success', title: 'Held', text: data.number, timer: 1400, showConfirmButton: false });
+            Swal.fire({
+                icon: 'success',
+                title: 'Held',
+                text: (data.number || 'Sale') + ' is saved. Print it if the customer wants to see the prices.',
+                showCancelButton: true,
+                confirmButtonText: 'Print prices',
+                cancelButtonText: 'Close'
+            }).then(function (result) {
+                if (result.isConfirmed && data.print_url) {
+                    window.open(data.print_url, 'sx-pos-quote', 'width=380,height=720');
+                }
+            });
         }).fail(function (xhr) {
             Swal.fire({ icon: 'error', title: 'Hold failed', text: (xhr.responseJSON && xhr.responseJSON.message) || 'Could not hold sale.' });
         });
@@ -1113,6 +1164,7 @@
     var walkInId = @json($walkInId);
     var loyaltyRules = @json($loyalty);
     var payWithPoints = false;
+    var splitPay = false;
 
     function selectedCustomerOption() {
         return $('#sx-pos-customer option:selected');
@@ -1202,7 +1254,51 @@
         $('#sx-pay-fee').text('KSh ' + money(fee));
         $('#sx-pay-total').text('KSh ' + money(due));
         $('#sx-pay-change').text('KSh ' + money(Math.max(0, received - due)));
+        if (splitPay) {
+            var parts = splitAmounts();
+            $('#sx-pay-still').text('KSh ' + money(parts.still));
+            $('#sx-pay-split-change').text('KSh ' + money(parts.change));
+        }
         updateCreditUi();
+    }
+    function setSplitPay(on) {
+        splitPay = !!on;
+        $('#sx-pay-split').toggleClass('is-active', splitPay);
+        $('#sx-pay-single-methods, #sx-pay-single').prop('hidden', splitPay);
+        $('#sx-pay-split-fields').prop('hidden', !splitPay);
+    }
+    function fieldMoney(selector) {
+        return roundMoney(parseFloat($(selector).val()) || 0);
+    }
+    function splitAmounts() {
+        var due = payableTotal();
+        var cash = fieldMoney('#sx-pay-cash');
+        var mpesa = fieldMoney('#sx-pay-mpesa');
+        var card = fieldMoney('#sx-pay-card');
+        var adjusted = false;
+        var room = due;
+        if (mpesa - room > 0.009) {
+            mpesa = room;
+            adjusted = true;
+        }
+        room = roundMoney(Math.max(0, room - mpesa));
+        if (card - room > 0.009) {
+            card = room;
+            adjusted = true;
+        }
+        var nonCash = roundMoney(mpesa + card);
+        var cashDue = roundMoney(Math.max(0, due - nonCash));
+        var payments = [];
+        if (cash > 0.009) payments.push({ method: 'cash', amount: cash });
+        if (mpesa > 0.009) payments.push({ method: 'mpesa', amount: mpesa });
+        if (card > 0.009) payments.push({ method: 'card', amount: card });
+        return {
+            payments: payments,
+            adjusted: adjusted,
+            still: roundMoney(Math.max(0, cashDue - cash)),
+            change: roundMoney(Math.max(0, cash - cashDue)),
+            grand: due
+        };
     }
     function writeReceived(amount) {
         fillingReceived = true;
@@ -1231,6 +1327,21 @@
         setPayMethod($(this).data('method'));
         $('#sx-pay-received-input').focus().select();
     });
+    $('#sx-pay-split').on('click', function (e) {
+        e.preventDefault();
+        if (!splitPay) {
+            var amount = receivedAmount();
+            $('#sx-pay-cash, #sx-pay-mpesa, #sx-pay-card').val('0.00');
+            var method = selectedPayMethod();
+            var target = method === 'mpesa' ? '#sx-pay-mpesa' : (method === 'card' ? '#sx-pay-card' : '#sx-pay-cash');
+            $(target).val(money(amount));
+        }
+        setSplitPay(!splitPay);
+        refreshPayPanel();
+    });
+    $('#sx-pay-cash, #sx-pay-mpesa, #sx-pay-card').on('input', function () {
+        refreshPayPanel();
+    });
     $('#sx-pay-received-input').on('input', function () {
         if (fillingReceived) return;
         payAmountEdited = true;
@@ -1249,6 +1360,9 @@
         return roundMoney(Math.max(0, t.grand - loyaltyQuote(t.grand).amount));
     }
     function buildPaymentsFromTenders() {
+        if (splitPay) {
+            return splitAmounts();
+        }
         var due = payableTotal();
         var method = selectedPayMethod();
         var amount = receivedAmount();
@@ -1379,6 +1493,7 @@
             rows.forEach(function (row, i) {
                 html += '<tr><td>' + (i + 1) + '</td><td>' + escapeHtml(row.number) + '</td><td>' + escapeHtml(row.customer) + '</td><td>' + row.total + '</td><td>' + row.held_at + '</td>';
                 html += '<td>';
+                html += '<a class="btn btn-default btn-xs sx-print-hold" target="sx-pos-quote" href="' + row.print_url + '">Print</a> ';
                 html += '<button type="button" class="btn btn-primary btn-xs sx-resume-hold" data-url="' + row.url + '">Resume</button> ';
                 html += '<button type="button" class="btn btn-danger btn-xs sx-cancel-hold" data-id="' + row.id + '" data-url="' + row.cancel_url + '" data-number="' + escapeHtml(row.number) + '">Cancel</button>';
                 html += '</td></tr>';

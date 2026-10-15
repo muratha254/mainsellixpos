@@ -97,15 +97,13 @@
                                             <li><a href="{{ route('settings.branches.edit', $branch) }}"><i class="fa fa-pencil"></i> Edit</a></li>
                                             @if(! $branch->is_default)
                                                 <li>
-                                                    <a href="#"
-                                                       onclick="event.preventDefault(); sxDeleteBranch({{ (int) $branch->id }}, @json($branch->name), {{ (int) $branch->users_count }}, @json(optional($branches->firstWhere('is_default', true))->name ?: 'the default branch'));">
+                                                    <a href="#" class="sx-delete-branch"
+                                                       data-url="{{ route('settings.branches.destroy', $branch) }}"
+                                                       data-name="{{ $branch->name }}"
+                                                       data-staff="{{ (int) $branch->users_count }}"
+                                                       data-fallback="{{ optional($branches->firstWhere('is_default', true))->name ?: 'the default branch' }}">
                                                         <i class="fa fa-trash"></i> Delete
                                                     </a>
-                                                    <form id="sx-del-br-{{ $branch->id }}" action="{{ route('settings.branches.destroy', $branch) }}" method="post" class="hidden">
-                                                        @csrf
-                                                        @method('DELETE')
-                                                        <input type="hidden" name="staff_action" value="">
-                                                    </form>
                                                 </li>
                                             @endif
                                         </ul>
@@ -121,17 +119,30 @@
         </div>
     </div>
 </div>
+
+<form id="sx-del-branch-form" method="post" class="hidden">
+    @csrf
+    @method('DELETE')
+    <input type="hidden" name="staff_action" value="">
+</form>
 @endsection
 
 @push('scripts')
 <script>
-function sxDeleteBranch(id, name, staffCount, fallbackName) {
-    var form = document.getElementById('sx-del-br-' + id);
+$(document).on('click', '.sx-delete-branch', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    var link = this;
+    var form = document.getElementById('sx-del-branch-form');
     if (!form) return;
-    var action = form.querySelector('[name="staff_action"]');
+    var staffCount = parseInt(link.getAttribute('data-staff'), 10) || 0;
+    var name = link.getAttribute('data-name') || 'this branch';
+    var fallbackName = link.getAttribute('data-fallback') || 'the default branch';
     function submit(choice) {
+        form.action = link.getAttribute('data-url');
+        var action = form.querySelector('[name="staff_action"]');
         if (action) action.value = choice || '';
-        form.submit();
+        HTMLFormElement.prototype.submit.call(form);
     }
     if (staffCount <= 0) {
         Swal.fire({
@@ -160,7 +171,7 @@ function sxDeleteBranch(id, name, staffCount, fallbackName) {
         if (result.isConfirmed) submit('move');
         else if (result.isDenied) submit('remove');
     });
-}
+});
 </script>
 @endpush
 

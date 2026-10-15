@@ -15,6 +15,16 @@ class BranchDeleteTest extends TestCase
         $this->setUpSellixWorld();
     }
 
+    public function test_the_branch_list_delete_link_keeps_the_branch_name_out_of_the_click_code(): void
+    {
+        $this->actingAsAdmin()
+            ->get(route('settings.branches'))
+            ->assertOk()
+            ->assertSee('sx-delete-branch', false)
+            ->assertSee('data-name="WAREHOUSE"', false)
+            ->assertDontSee('onclick="event.preventDefault(); sxDeleteBranch', false);
+    }
+
     public function test_a_branch_with_staff_is_deleted_and_those_staff_move_to_the_default_branch(): void
     {
         $this->cashier->update(['branch_id' => $this->secondaryBranch->id]);

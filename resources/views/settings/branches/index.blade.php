@@ -97,12 +97,14 @@
                                             <li><a href="{{ route('settings.branches.edit', $branch) }}"><i class="fa fa-pencil"></i> Edit</a></li>
                                             @if(! $branch->is_default)
                                                 <li>
-                                                    <a href="#" onclick="event.preventDefault(); if(confirm('Delete this branch?')) document.getElementById('sx-del-br-{{ $branch->id }}').submit();">
+                                                    <a href="#"
+                                                       onclick="event.preventDefault(); sxDeleteBranch({{ (int) $branch->id }}, @json($branch->name), {{ (int) $branch->users_count }}, @json(optional($branches->firstWhere('is_default', true))->name ?: 'the default branch'));">
                                                         <i class="fa fa-trash"></i> Delete
                                                     </a>
                                                     <form id="sx-del-br-{{ $branch->id }}" action="{{ route('settings.branches.destroy', $branch) }}" method="post" class="hidden">
                                                         @csrf
                                                         @method('DELETE')
+                                                        <input type="hidden" name="staff_action" value="">
                                                     </form>
                                                 </li>
                                             @endif
@@ -120,6 +122,47 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+function sxDeleteBranch(id, name, staffCount, fallbackName) {
+    var form = document.getElementById('sx-del-br-' + id);
+    if (!form) return;
+    var action = form.querySelector('[name="staff_action"]');
+    function submit(choice) {
+        if (action) action.value = choice || '';
+        form.submit();
+    }
+    if (staffCount <= 0) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Delete ' + name + '?',
+            text: 'The branch will be removed. Sales already recorded stay in the books.',
+            showCancelButton: true,
+            confirmButtonText: 'Delete branch',
+            cancelButtonText: 'Cancel'
+        }).then(function (result) {
+            if (result.isConfirmed) submit('');
+        });
+        return;
+    }
+    var people = staffCount === 1 ? '1 staff account is' : (staffCount + ' staff accounts are');
+    Swal.fire({
+        icon: 'question',
+        title: 'Delete ' + name + '?',
+        text: people + ' on this branch. Move them only if you want them to keep working at ' + fallbackName + '.',
+        showCancelButton: true,
+        showDenyButton: true,
+        confirmButtonText: 'Move staff to ' + fallbackName,
+        denyButtonText: 'Turn off those accounts',
+        cancelButtonText: 'Cancel'
+    }).then(function (result) {
+        if (result.isConfirmed) submit('move');
+        else if (result.isDenied) submit('remove');
+    });
+}
+</script>
+@endpush
 
 @include('accounting.partials.datatable-js', [
     'tableId' => 'br-table',

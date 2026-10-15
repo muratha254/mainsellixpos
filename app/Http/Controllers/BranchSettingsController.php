@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Branch;
 use App\Services\SubscriptionLimitGuard;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
@@ -18,7 +19,7 @@ class BranchSettingsController extends Controller
 
         return view('settings.branches.index', array_merge(fleet_shared_view_data(), [
             'activeMenu' => 'settings.branches',
-            'branches' => Branch::query()->orderByDesc('is_default')->orderBy('name')->get(),
+            'branches' => Branch::query()->withCount('users')->orderByDesc('is_default')->orderBy('name')->get(),
             'canManage' => $this->canManage(),
             'subscriptionUsage' => $usage,
             'atBranchLimit' => $this->atBranchLimit($usage),
@@ -113,19 +114,80 @@ class BranchSettingsController extends Controller
         return redirect()->route('settings.branches')->with('success', 'Branch updated.');
     }
 
-    public function destroy(Branch $branch)
+    public function destroy(Request $request, Branch $branch)
     {
         abort_unless($this->canManage(), 403);
-        abort_if($branch->is_default, 422, 'Default branch cannot be deleted.');
-        abort_if($branch->users()->exists(), 422, 'Branch has users and cannot be deleted.');
 
-        if ($branch->logo_path) {
-            Storage::disk('public')->delete($branch->logo_path);
+        if ($branch->is_default) {
+            return redirect()
+                ->route('settings.branches')
+                ->with('error', 'The default branch cannot be deleted. Set another branch as the default first.');
         }
 
-        $branch->delete();
+        $fallback = Branch::query()
+            ->where('id', '!=', $branch->id)
+            ->orderByDesc('is_default')
+            ->orderBy('id')
+            ->first();
 
-        return redirect()->route('settings.branches')->with('success', 'Branch deleted.');
+        if (! $fallback) {
+            return redirect()
+                ->route('settings.branches')
+                ->with('error', 'This is the only branch and cannot be deleted.');
+        }
+
+        $staffCount = (int) $branch->users()->count();
+        $action = (string) $request->input('staff_action', '');
+        if ($staffCount > 0 && ! in_array($action, ['move', 'remove'], true)) {
+            return redirect()
+                ->route('settings.branches')
+                ->with('error', 'Choose whether to move the staff on this branch or turn those accounts off.');
+        }
+
+        $actorId = (int) auth()->id();
+        $actorWasHere = $branch->users()->whereKey($actorId)->exists();
+
+        DB::transaction(function () use ($branch, $fallback, $action, $actorId) {
+            if ($action === 'move') {
+                $branch->users()->update(['branch_id' => $fallback->id]);
+            } elseif ($action === 'remove') {
+                $branch->users()->where('id', '!=', $actorId)->update([
+                    'branch_id' => null,
+                    'is_active' => false,
+                ]);
+                $branch->users()->whereKey($actorId)->update(['branch_id' => $fallback->id]);
+            }
+
+            if ($branch->logo_path) {
+                Storage::disk('public')->delete($branch->logo_path);
+            }
+
+            $branch->delete();
+        });
+
+        if ($actorWasHere && $action === 'move') {
+            auth()->user()->forceFill(['branch_id' => $fallback->id])->save();
+        } elseif ($actorWasHere && $action === 'remove') {
+            auth()->user()->forceFill(['branch_id' => $fallback->id])->save();
+        }
+        if ((int) session('current_branch_id') === (int) $branch->id) {
+            session(['current_branch_id' => $fallback->id]);
+        }
+
+        $message = 'Branch deleted.';
+        if ($action === 'move' && $staffCount > 0) {
+            $message .= ' '.$staffCount.' staff account'.($staffCount === 1 ? '' : 's').' now use '.$fallback->name.'.';
+        } elseif ($action === 'remove' && $staffCount > 0) {
+            $turnedOff = $actorWasHere ? $staffCount - 1 : $staffCount;
+            if ($turnedOff > 0) {
+                $message .= ' '.$turnedOff.' staff account'.($turnedOff === 1 ? ' was' : 's were').' turned off.';
+            }
+            if ($actorWasHere) {
+                $message .= ' Your account now uses '.$fallback->name.'.';
+            }
+        }
+
+        return redirect()->route('settings.branches')->with('success', $message);
     }
 
     private function validated(Request $request, ?int $ignoreId = null): array

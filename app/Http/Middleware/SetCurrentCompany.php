@@ -50,9 +50,14 @@ class SetCurrentCompany
                 }
             }
 
+            if ($branchId && ! Branch::query()->whereKey($branchId)->where('is_active', true)->exists()) {
+                $branchId = null;
+            }
+
             if (! $branchId) {
                 $branchId = Branch::query()
                     ->where('company_id', $user->company_id)
+                    ->where('is_active', true)
                     ->orderByDesc('is_default')
                     ->orderBy('id')
                     ->value('id');

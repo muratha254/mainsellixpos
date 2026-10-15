@@ -930,6 +930,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/settings/branches/create', [BranchSettingsController::class, 'create'])->name('settings.branches.create');
         Route::post('/settings/branches', [BranchSettingsController::class, 'store'])->name('settings.branches.store');
         Route::get('/settings/branches/{branch}/edit', [BranchSettingsController::class, 'edit'])->name('settings.branches.edit');
+        Route::post('/settings/branches/{branch}/status', [BranchSettingsController::class, 'updateStatus'])->name('settings.branches.status');
         Route::put('/settings/branches/{branch}', [BranchSettingsController::class, 'update'])->name('settings.branches.update');
         Route::delete('/settings/branches/{branch}', [BranchSettingsController::class, 'destroy'])->name('settings.branches.destroy');
     });

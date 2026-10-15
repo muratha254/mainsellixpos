@@ -22,7 +22,41 @@ class BranchDeleteTest extends TestCase
             ->assertOk()
             ->assertSee('sx-delete-branch', false)
             ->assertSee('data-name="WAREHOUSE"', false)
-            ->assertDontSee('onclick="event.preventDefault(); sxDeleteBranch', false);
+            ->assertDontSee('onclick="event.preventDefault(); sxDeleteBranch', false)
+            ->assertSee('Deactivate', false)
+            ->assertSee('sx-branch-status', false);
+    }
+
+    public function test_a_branch_can_be_deactivated_and_activated_again_without_removing_it(): void
+    {
+        $this->cashier->update(['branch_id' => $this->secondaryBranch->id]);
+
+        $this->actingAsAdmin()
+            ->post(route('settings.branches.status', $this->secondaryBranch), ['active' => '0'])
+            ->assertRedirect(route('settings.branches'))
+            ->assertSessionHas('success');
+
+        $branch = $this->secondaryBranch->fresh();
+        $this->assertFalse((bool) $branch->is_active);
+        $this->assertNull($branch->deleted_at);
+        $this->assertSame((int) $this->secondaryBranch->id, (int) $this->cashier->fresh()->branch_id);
+
+        $this->actingAsAdmin()
+            ->post(route('settings.branches.status', $this->secondaryBranch), ['active' => '1'])
+            ->assertRedirect(route('settings.branches'))
+            ->assertSessionHas('success');
+
+        $this->assertTrue((bool) $this->secondaryBranch->fresh()->is_active);
+    }
+
+    public function test_the_default_branch_cannot_be_deactivated(): void
+    {
+        $this->actingAsAdmin()
+            ->post(route('settings.branches.status', $this->branch), ['active' => '0'])
+            ->assertRedirect(route('settings.branches'))
+            ->assertSessionHas('error');
+
+        $this->assertTrue((bool) $this->branch->fresh()->is_active);
     }
 
     public function test_a_branch_with_staff_is_deleted_and_those_staff_move_to_the_default_branch(): void

@@ -95,6 +95,25 @@
                                         </button>
                                         <ul class="dropdown-menu dropdown-menu-right sx-action-menu">
                                             <li><a href="{{ route('settings.branches.edit', $branch) }}"><i class="fa fa-pencil"></i> Edit</a></li>
+                                            @if($branch->is_active && ! $branch->is_default)
+                                                <li>
+                                                    <a href="#" class="sx-branch-status"
+                                                       data-url="{{ route('settings.branches.status', $branch) }}"
+                                                       data-active="0"
+                                                       data-name="{{ $branch->name }}">
+                                                        <i class="fa fa-pause"></i> Deactivate
+                                                    </a>
+                                                </li>
+                                            @elseif(! $branch->is_active)
+                                                <li>
+                                                    <a href="#" class="sx-branch-status"
+                                                       data-url="{{ route('settings.branches.status', $branch) }}"
+                                                       data-active="1"
+                                                       data-name="{{ $branch->name }}">
+                                                        <i class="fa fa-check"></i> Activate
+                                                    </a>
+                                                </li>
+                                            @endif
                                             @if(! $branch->is_default)
                                                 <li>
                                                     <a href="#" class="sx-delete-branch"
@@ -120,6 +139,10 @@
     </div>
 </div>
 
+<form id="sx-branch-status-form" method="post" class="hidden">
+    @csrf
+    <input type="hidden" name="active" value="1">
+</form>
 <form id="sx-del-branch-form" method="post" class="hidden">
     @csrf
     @method('DELETE')
@@ -129,6 +152,31 @@
 
 @push('scripts')
 <script>
+$(document).on('click', '.sx-branch-status', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    var link = this;
+    var form = document.getElementById('sx-branch-status-form');
+    if (!form) return;
+    var turningOn = link.getAttribute('data-active') === '1';
+    var name = link.getAttribute('data-name') || 'this branch';
+    Swal.fire({
+        icon: 'question',
+        title: (turningOn ? 'Activate ' : 'Deactivate ') + name + '?',
+        text: turningOn
+            ? 'The branch will show in the branch list again. Staff and sales stay as they are.'
+            : 'The branch stays in this list and can be activated again. It will be hidden from the till until then.',
+        showCancelButton: true,
+        confirmButtonText: turningOn ? 'Activate' : 'Deactivate',
+        cancelButtonText: 'Cancel'
+    }).then(function (result) {
+        if (!result.isConfirmed) return;
+        form.action = link.getAttribute('data-url');
+        var active = form.querySelector('[name="active"]');
+        if (active) active.value = turningOn ? '1' : '0';
+        HTMLFormElement.prototype.submit.call(form);
+    });
+});
 $(document).on('click', '.sx-delete-branch', function (e) {
     e.preventDefault();
     e.stopPropagation();

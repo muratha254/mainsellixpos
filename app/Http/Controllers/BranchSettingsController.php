@@ -114,6 +114,37 @@ class BranchSettingsController extends Controller
         return redirect()->route('settings.branches')->with('success', 'Branch updated.');
     }
 
+    public function updateStatus(Request $request, Branch $branch)
+    {
+        abort_unless($this->canManage(), 403);
+
+        $active = $request->boolean('active');
+        if (! $active && $branch->is_default) {
+            return redirect()
+                ->route('settings.branches')
+                ->with('error', 'The default branch cannot be deactivated. Set another branch as the default first.');
+        }
+
+        $branch->update(['is_active' => $active]);
+
+        if (! $active && (int) session('current_branch_id') === (int) $branch->id) {
+            $fallback = Branch::query()
+                ->where('is_active', true)
+                ->orderByDesc('is_default')
+                ->orderBy('id')
+                ->value('id');
+            if ($fallback) {
+                session(['current_branch_id' => (int) $fallback]);
+            }
+        }
+
+        return redirect()
+            ->route('settings.branches')
+            ->with('success', $active
+                ? $branch->name.' is active again.'
+                : $branch->name.' is deactivated. Activate it from this list when you want it back.');
+    }
+
     public function destroy(Request $request, Branch $branch)
     {
         abort_unless($this->canManage(), 403);

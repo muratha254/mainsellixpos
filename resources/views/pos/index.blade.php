@@ -787,6 +787,10 @@
             });
     }
 
+    document.addEventListener('sx-offline-refresh', function () {
+        loadCatalog();
+    });
+
     $(document).on('click', '.pos-cat', function () {
         categoryId = $(this).data('id') || null;
         page = 1;
@@ -1139,6 +1143,22 @@
             headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
             data: cartPayload()
         }).done(function (data) {
+            if (data && data.offline) {
+                $('#sx-pos-hold-count').text(data.held_count || 0);
+                resetCart();
+                if (walkInId) {
+                    $('#sx-pos-customer').val(String(walkInId)).trigger('change');
+                }
+                if (window.SellixOffline && data.preview) {
+                    window.SellixOffline.printPreview(data.preview);
+                }
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Held on this device',
+                    text: (data.number || 'Sale') + ' stays on this device until the connection returns.'
+                });
+                return;
+            }
             $('#sx-pos-hold-count').text(data.held_count || 0);
             resetCart();
             if (walkInId) {
@@ -1438,6 +1458,19 @@
             headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
             data: payload
         }).done(function (data) {
+            if (data && data.offline) {
+                resetCart();
+                document.dispatchEvent(new CustomEvent('sx-offline-refresh'));
+                if (window.SellixOffline && data.preview) {
+                    window.SellixOffline.printPreview(data.preview);
+                }
+                Swal.fire({
+                    icon: 'info',
+                    title: 'Saved on this device',
+                    text: (data.number || 'Sale') + ' will sync when the connection returns.'
+                });
+                return;
+            }
             // Refresh credit used for selected customer after a credit sale.
             if (balanceDue > 0.009) {
                 var $opt = selectedCustomerOption();

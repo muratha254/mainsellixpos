@@ -1,4 +1,8 @@
 <meta name="theme-color" content="#c9a027">
+@auth
+<meta name="sx-user-id" content="{{ auth()->id() }}">
+<meta name="sx-offline-ping" content="{{ route('offline.ping') }}">
+@endauth
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">

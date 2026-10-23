@@ -134,6 +134,14 @@ Route::middleware('auth')->group(function () {
         Route::post('/businesses/{company}/invoices', [OwnerBusinessController::class, 'invoice'])->name('businesses.invoice');
     });
 
+    Route::get('/offline/ping', function () {
+        return response()->json([
+            'ok' => true,
+            'csrf' => csrf_token(),
+            'user_id' => auth()->id(),
+        ]);
+    })->name('offline.ping');
+
     Route::get('/dashboard', [DashboardController::class, 'index'])
         ->middleware('permission:dashboard.view')
         ->name('dashboard');
@@ -364,6 +372,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:pos.view')->group(function () {
         Route::get('/pos', [PosController::class, 'index'])->name('pos.index');
         Route::get('/pos/catalog', [PosController::class, 'catalog'])->name('pos.catalog');
+        Route::get('/pos/offline-snapshot', [PosController::class, 'offlineSnapshot'])->name('pos.offline-snapshot');
         Route::get('/pos/search', [PosController::class, 'search'])->name('pos.search');
         Route::get('/pos/holds', [PosController::class, 'holds'])->name('pos.holds');
         Route::get('/pos/holds/{sale}/print', [PosController::class, 'printHold'])->name('pos.holds.print');

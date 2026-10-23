@@ -31,7 +31,9 @@ class PwaInstallabilityTest extends TestCase
         $this->get(route('pwa.sw'))
             ->assertOk()
             ->assertHeader('Service-Worker-Allowed')
-            ->assertSee('sellix-app-cache-v4', false)
+            ->assertSee('sellix-app-cache-v5', false)
+            ->assertSee('networkFirstPage', false)
+            ->assertSee('offline.html', false)
             ->assertSee('SKIP_WAITING', false)
             ->assertDontSee('password', false);
     }

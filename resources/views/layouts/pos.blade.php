@@ -7,6 +7,8 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     @include('layouts.partials.pwa-head')
+    <meta name="sx-offline-snapshot" content="{{ route('pos.offline-snapshot') }}">
+    <meta name="sx-company-name" content="{{ $companyName ?? '' }}">
     @include('layouts.partials.page-transition')
     <link rel="stylesheet" href="{{ asset('AdminLTE-2/bower_components/bootstrap/dist/css/bootstrap.min.css') }}">
     <link rel="stylesheet" href="{{ asset('AdminLTE-2/bower_components/font-awesome/css/font-awesome.min.css') }}">
@@ -53,6 +55,7 @@
         <span>{{ $systemShortName ?? $systemName ?? fleet_system_short_name() }} {{ $companyName ?? '' }}</span>
     </footer>
     <script src="{{ asset('AdminLTE-2/bower_components/jquery/dist/jquery.min.js') }}"></script>
+    <script src="{{ asset('js/sellix-offline.js') }}?v=1"></script>
     <script src="{{ asset('AdminLTE-2/bower_components/bootstrap/dist/js/bootstrap.min.js') }}"></script>
     <script src="{{ asset('AdminLTE-2/bower_components/select2/dist/js/select2.full.js') }}"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>

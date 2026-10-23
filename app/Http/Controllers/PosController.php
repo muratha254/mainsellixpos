@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Exceptions\NegativeStockException;
 use App\Models\Customer;
+use App\Models\OfflineSyncKey;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Models\ProductBranchStock;
@@ -19,6 +20,7 @@ use App\Services\LoyaltyService;
 use App\Services\AuditLogger;
 use App\Services\UnitConversionService;
 use App\Support\DiscountCalculator;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -95,6 +97,55 @@ class PosController extends Controller
         ]);
     }
 
+    public function offlineSnapshot(Request $request)
+    {
+        $this->authorizePermission('pos.view');
+
+        $branchId = $this->currentBranchId();
+        $categories = ProductCategory::query()
+            ->where('is_active', true)
+            ->where('show_on_pos', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $products = Product::query()
+            ->with(['tax', 'unit', 'purchaseUnit', 'sellingUnits'])
+            ->availableAtBranch($branchId)
+            ->where('is_active', true)
+            ->where('for_sale', true)
+            ->orderBy('name')
+            ->limit(1500)
+            ->get();
+
+        $customers = Customer::query()
+            ->where('is_active', true)
+            ->withSum(['sales as credit_sales' => function ($query) {
+                $query->where('status', Sale::STATUS_COMPLETED);
+            }], 'balance')
+            ->orderByDesc('is_walk_in')
+            ->orderBy('name')
+            ->limit(1000)
+            ->get();
+
+        return response()->json([
+            'branch_id' => $branchId,
+            'user_id' => auth()->id(),
+            'saved_at' => now()->toIso8601String(),
+            'categories' => $categories,
+            'products' => $products->map(function (Product $product) use ($branchId) {
+                $payload = $this->productPayload($product, $branchId);
+                unset($payload['cost']);
+                $payload['category_id'] = $product->category_id;
+
+                return $payload;
+            })->values(),
+            'customers' => $customers->map(function (Customer $customer) {
+                return $this->customerPosPayload($customer);
+            })->values(),
+        ]);
+    }
+
     public function search(Request $request)
     {
         $this->authorizePermission('pos.view');
@@ -143,29 +194,39 @@ class PosController extends Controller
     {
         $this->authorizePermission('customers.create');
 
+        if ($replay = $this->replayOfflineKey($request)) {
+            return $replay;
+        }
+
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'phone' => 'nullable|string|max:64',
             'email' => 'nullable|email|max:255',
         ]);
 
-        $customer = Customer::query()->create([
-            'company_id' => auth()->user()->company_id,
-            'name' => $data['name'],
-            'phone' => $data['phone'] ?? null,
-            'email' => $data['email'] ?? null,
-            'type' => Customer::TYPE_REGULAR,
-            'is_walk_in' => false,
-            'is_active' => true,
-        ]);
+        try {
+            $customer = DB::transaction(function () use ($data, $request) {
+                $customer = Customer::query()->create([
+                    'company_id' => auth()->user()->company_id,
+                    'name' => $data['name'],
+                    'phone' => $data['phone'] ?? null,
+                    'email' => $data['email'] ?? null,
+                    'type' => Customer::TYPE_REGULAR,
+                    'is_walk_in' => false,
+                    'is_active' => true,
+                ]);
+                $this->rememberOfflineKey($request, 'customer', $customer->id);
 
-        return response()->json([
-            'id' => $customer->id,
-            'name' => $customer->name,
-            'phone' => $customer->phone,
-            'credit_limit' => (float) $customer->credit_limit,
-            'credit_used' => $customer->creditAmount(),
-        ]);
+                return $customer;
+            });
+        } catch (QueryException $e) {
+            if ($replay = $this->replayOfflineKey($request)) {
+                return $replay;
+            }
+            throw $e;
+        }
+
+        return response()->json($this->customerPosPayload($customer));
     }
 
     public function holds()
@@ -264,8 +325,26 @@ class PosController extends Controller
     {
         $this->authorizePermission('pos.operate');
 
+        if ($replay = $this->replayOfflineKey($request)) {
+            return $replay;
+        }
+
         $data = $this->validateCart($request);
-        $sale = $this->writeSale($data, $numbers, Sale::STATUS_HELD, 0, null);
+        $data['offline_key'] = $this->offlineClientKey($request);
+
+        try {
+            $sale = DB::transaction(function () use ($data, $numbers, $request) {
+                $sale = $this->writeSale($data, $numbers, Sale::STATUS_HELD, 0, null);
+                $this->rememberOfflineKey($request, 'hold', $sale->id);
+
+                return $sale;
+            });
+        } catch (QueryException $e) {
+            if ($replay = $this->replayOfflineKey($request)) {
+                return $replay;
+            }
+            throw $e;
+        }
 
         return response()->json([
             'id' => $sale->id,
@@ -278,6 +357,10 @@ class PosController extends Controller
     public function order(Request $request, DocumentNumberService $numbers, InventoryService $inventory, AccountingPoster $accounting, LoyaltyService $loyalty, AuditLogger $audit)
     {
         $this->authorizePermission('pos.operate');
+
+        if ($replay = $this->replayOfflineKey($request)) {
+            return $replay;
+        }
 
         $data = $this->validateCart($request);
         $data = array_merge($data, $request->validate([
@@ -361,9 +444,10 @@ class PosController extends Controller
             $balanceDue > 0.009 ? 'On credit' : null,
         ]);
         $data['notes'] = $noteParts ? implode(' | ', $noteParts) : null;
+        $data['offline_key'] = $this->offlineClientKey($request);
 
         try {
-            $sale = DB::transaction(function () use ($data, $numbers, $inventory, $payAmount, $payments, $accounting, $loyalty, $audit) {
+            $sale = DB::transaction(function () use ($data, $numbers, $inventory, $payAmount, $payments, $accounting, $loyalty, $audit, $request) {
                 $sale = $this->writeSale($data, $numbers, Sale::STATUS_COMPLETED, $payAmount, $inventory);
 
                 foreach ($payments as $row) {
@@ -397,24 +481,20 @@ class PosController extends Controller
                     'status' => $sale->status,
                 ]);
 
+                $this->rememberOfflineKey($request, 'sale', $sale->id);
+
                 return $sale;
             });
         } catch (NegativeStockException | InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
+        } catch (QueryException $e) {
+            if ($replay = $this->replayOfflineKey($request)) {
+                return $replay;
+            }
+            throw $e;
         }
 
-        $balance = $sale->customer_id
-            ? (float) optional($sale->customer()->first())->loyalty_points
-            : 0;
-
-        return response()->json([
-            'id' => $sale->id,
-            'number' => $sale->number,
-            'invoice_number' => $sale->invoice_number,
-            'receipt_number' => $sale->receipt_number,
-            'receipt_url' => route('pos.receipt', $sale),
-            'loyalty_points' => round($balance, 2),
-        ]);
+        return $this->completedSaleResponse($sale);
     }
 
     public function printHold(Sale $sale, SettingsService $settings)
@@ -561,6 +641,9 @@ class PosController extends Controller
         $hold = null;
         if (! empty($data['hold_id'])) {
             $hold = Sale::query()->where('status', Sale::STATUS_HELD)->find($data['hold_id']);
+            if (! $hold && ! empty($data['offline_key'])) {
+                throw new InvalidArgumentException('That held sale was already completed or removed on the server. This copy was not posted again.');
+            }
         }
 
         $conversion = app(UnitConversionService::class);
@@ -870,7 +953,7 @@ class PosController extends Controller
         }
         $displayMode = $settings->get($companyId, 'stock_display_mode', 'both');
 
-        return [
+        $payload = [
             'id' => $product->id,
             'name' => $product->name,
             'sku' => $product->sku,
@@ -896,6 +979,8 @@ class PosController extends Controller
             'selling_units' => $units,
             'multi_unit' => $multiUnit && count($units) > 1,
         ];
+
+        return $payload;
     }
 
     private function walkInCustomer(): Customer
@@ -911,6 +996,106 @@ class PosController extends Controller
             'type' => Customer::TYPE_WALK_IN,
             'is_walk_in' => true,
             'is_active' => true,
+        ]);
+    }
+
+    private function customerPosPayload(Customer $customer): array
+    {
+        return [
+            'id' => $customer->id,
+            'name' => $customer->name,
+            'phone' => $customer->phone,
+            'is_walk_in' => (bool) $customer->is_walk_in,
+            'credit_limit' => (float) $customer->credit_limit,
+            'credit_used' => $customer->creditAmount(),
+            'points' => round((float) $customer->loyalty_points, 2),
+        ];
+    }
+
+    private function completedSaleResponse(Sale $sale)
+    {
+        $balance = $sale->customer_id
+            ? (float) optional($sale->customer()->first())->loyalty_points
+            : 0;
+
+        return response()->json([
+            'id' => $sale->id,
+            'number' => $sale->number,
+            'invoice_number' => $sale->invoice_number,
+            'receipt_number' => $sale->receipt_number,
+            'receipt_url' => route('pos.receipt', $sale),
+            'loyalty_points' => round($balance, 2),
+        ]);
+    }
+
+    private function offlineClientKey(Request $request): ?string
+    {
+        $key = trim((string) $request->input('offline_key', ''));
+        if ($key === '' || ! preg_match('/^[A-Za-z0-9_-]{8,64}$/', $key)) {
+            return null;
+        }
+
+        return $key;
+    }
+
+    private function replayOfflineKey(Request $request)
+    {
+        $key = $this->offlineClientKey($request);
+        if (! $key) {
+            return null;
+        }
+
+        $row = OfflineSyncKey::query()
+            ->where('company_id', auth()->user()->company_id)
+            ->where('client_key', $key)
+            ->first();
+        if (! $row) {
+            return null;
+        }
+
+        if ((int) $row->user_id !== (int) auth()->id()) {
+            abort(403);
+        }
+
+        if ($row->resource === 'customer') {
+            $customer = Customer::query()->find($row->resource_id);
+            if (! $customer) {
+                return null;
+            }
+
+            return response()->json($this->customerPosPayload($customer));
+        }
+
+        $sale = Sale::query()->find($row->resource_id);
+        if (! $sale) {
+            return null;
+        }
+
+        if ($sale->status === Sale::STATUS_HELD) {
+            return response()->json([
+                'id' => $sale->id,
+                'number' => $sale->number,
+                'print_url' => route('pos.holds.print', $sale),
+                'held_count' => Sale::query()->where('status', Sale::STATUS_HELD)->count(),
+            ]);
+        }
+
+        return $this->completedSaleResponse($sale);
+    }
+
+    private function rememberOfflineKey(Request $request, string $resource, int $id): void
+    {
+        $key = $this->offlineClientKey($request);
+        if (! $key) {
+            return;
+        }
+
+        OfflineSyncKey::query()->create([
+            'company_id' => auth()->user()->company_id,
+            'user_id' => auth()->id(),
+            'client_key' => $key,
+            'resource' => $resource,
+            'resource_id' => $id,
         ]);
     }
 }

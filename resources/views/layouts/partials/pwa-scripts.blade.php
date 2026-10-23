@@ -13,4 +13,5 @@
         <button type="button" class="sx-pwa-update-later" data-pwa-update-later>Later</button>
     </div>
 </div>
+<script src="{{ asset('js/sellix-offline.js') }}?v=1"></script>
 <script src="{{ asset('js/pwa.js') }}?v=2" data-sw-url="{{ asset('sw.js') }}" data-version-url="{{ route('pwa.version') }}"></script>

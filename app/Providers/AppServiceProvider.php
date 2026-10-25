@@ -34,10 +34,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot()
     {
         if (! function_exists('can_view_item_buying_price')) {
-            function can_view_item_buying_price(): bool
-            {
-                return true;
-            }
+            require_once __DIR__ . '/../Support/buying_price_fallback.php';
         }
 
         $appUrl = config('app.url');

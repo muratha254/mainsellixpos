@@ -118,6 +118,11 @@ class Product extends Model
         return $this->hasMany(ProductVariant::class);
     }
 
+    public function variantAttributes()
+    {
+        return $this->hasMany(ProductVariantAttribute::class)->orderBy('sort_order')->orderBy('id');
+    }
+
     public function branchStock()
     {
         return $this->hasMany(ProductBranchStock::class);
@@ -162,12 +167,17 @@ class Product extends Model
             return 0.0;
         }
 
-        $row = $this->branchStock()
+        $query = $this->branchStock()
             ->withoutGlobalScope('branch')
-            ->where('branch_id', $branchId)
-            ->first();
+            ->where('branch_id', $branchId);
 
-        return $row ? (float) $row->quantity : 0.0;
+        if ($this->has_variants) {
+            $query->where('product_variant_id', '>', 0);
+        } else {
+            $query->where('product_variant_id', 0);
+        }
+
+        return (float) $query->sum('quantity');
     }
 
     public function getItemCodeAttribute(): string

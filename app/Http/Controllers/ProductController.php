@@ -11,8 +11,10 @@ use App\Models\ProductUnit;
 use App\Models\StockMovement;
 use App\Services\AuditLogger;
 use App\Services\InventoryService;
+use App\Services\ProductVariationService;
 use App\Services\UnitConversionService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
@@ -89,7 +91,9 @@ class ProductController extends Controller
                 'profit_margin' => 0,
                 'sales_commission' => 0,
                 'reorder_level' => 0,
+                'has_variants' => false,
             ]),
+            'variationEditor' => ['enabled' => false, 'attributes' => [], 'variations' => []],
         ]));
     }
 
@@ -130,15 +134,27 @@ class ProductController extends Controller
         $data['purchase_to_base'] = $data['purchase_to_base'] ?? 1;
         $data['unit_pricing_mode'] = $data['unit_pricing_mode'] ?? 'automatic';
 
+        if (! can_view_item_buying_price()) {
+            $data['purchase_price'] = 0;
+            $data['profit_margin'] = 0;
+        }
+
         $product = Product::query()->create($data);
         $conversion->syncSellingUnits($product, is_array($sellingUnits) ? $sellingUnits : [], (int) $product->company_id);
 
-        $openingBase = $this->openingToBase($product->fresh(['purchaseUnit', 'unit']), $opening, $openingUnit, $conversion);
+        $openingBase = ! empty($data['has_variants'])
+            ? 0.0
+            : $this->openingToBase($product->fresh(['purchaseUnit', 'unit']), $opening, $openingUnit, $conversion);
 
         try {
             $this->ensureBranchStock($product, $branchId);
             $this->applyOpeningStock($inventory, $product, $branchId, $openingBase, StockMovement::OPENING, $this->openingNote($opening, $openingUnit, $product, $conversion));
             $this->recordBatch($product, $branchId, $openingBase);
+            $this->syncVariations($request, $product, $branchId, $inventory, false);
+        } catch (ValidationException $e) {
+            $product->delete();
+
+            return back()->withInput()->withErrors($e->errors());
         } catch (NegativeStockException $e) {
             return redirect()->route('products.edit', $product)->with('error', $e->getMessage());
         }
@@ -153,7 +169,7 @@ class ProductController extends Controller
         $this->authorizePermission('products.view');
         $this->authorizeProductBranch($product);
 
-        $product->load(['category', 'brand', 'unit', 'tax', 'purchaseUnit', 'sellingUnits']);
+        $product->load(['category', 'brand', 'unit', 'tax', 'purchaseUnit', 'sellingUnits', 'variants']);
         $branchId = $this->currentBranchId();
         $qty = $product->quantityAtBranch($branchId);
         $soldQty = $branchId
@@ -195,6 +211,9 @@ class ProductController extends Controller
             'batches' => $batches,
             'children' => $children,
             'childStock' => $childStock,
+            'variationStock' => $branchId
+                ? ProductBranchStock::query()->withoutGlobalScope('branch')->where('branch_id', $branchId)->where('product_id', $product->id)->where('product_variant_id', '>', 0)->pluck('quantity', 'product_variant_id')
+                : collect(),
             'currencyCode' => optional(auth()->user()->company)->currency_code ?? 'KES',
             'canUpdate' => auth()->user()->hasPermission('products.update'),
             'canCreate' => auth()->user()->hasPermission('products.create'),
@@ -381,7 +400,7 @@ class ProductController extends Controller
         $this->authorizePermission('products.update');
         $this->authorizeProductBranch($product);
 
-        $product->load(['sellingUnits', 'purchaseUnit', 'unit']);
+        $product->load(['sellingUnits', 'purchaseUnit', 'unit', 'variantAttributes.values', 'variants']);
         $conversion = app(UnitConversionService::class);
         $branchId = $this->currentBranchId();
         $currentBase = $branchId ? $product->quantityAtBranch($branchId) : 0.0;
@@ -391,6 +410,7 @@ class ProductController extends Controller
             'selectedBranchId' => $branchId,
             'product' => $product,
             'openingStock' => $this->openingDisplayQty($product, $currentBase, $conversion),
+            'variationEditor' => app(ProductVariationService::class)->editorState($product, $branchId),
         ]));
     }
 
@@ -400,6 +420,7 @@ class ProductController extends Controller
         $this->authorizeProductBranch($product);
 
         $before = $product->only(['name', 'sku', 'purchase_price', 'selling_price', 'wholesale_price']);
+        $previouslyHadVariants = (bool) $product->has_variants;
         $data = $this->validated($request, $product->id);
         $data['sku'] = $data['sku'] ?: null;
         $data['barcode'] = $data['barcode'] ?: null;
@@ -431,6 +452,10 @@ class ProductController extends Controller
         $data['purchase_to_base'] = $data['purchase_to_base'] ?? 1;
         $data['unit_pricing_mode'] = $data['unit_pricing_mode'] ?? 'automatic';
 
+        if (! can_view_item_buying_price()) {
+            unset($data['purchase_price'], $data['profit_margin']);
+        }
+
         $product->update($data);
         $conversion->syncSellingUnits($product->fresh(), is_array($sellingUnits) ? $sellingUnits : [], (int) $product->company_id);
 
@@ -438,17 +463,29 @@ class ProductController extends Controller
         abort_unless($branchId, 422, 'Select an active branch before updating stock.');
         $this->assertBranchAccess($branchId);
 
-        $product = $product->fresh(['unit', 'purchaseUnit']);
-        $desiredBase = $this->openingToBase($product, $opening, $openingUnit, $conversion);
-        $currentBase = $product->quantityAtBranch($branchId);
-        $delta = $conversion->roundQty($desiredBase - $currentBase);
-
         try {
+            $this->syncVariations($request, $product, $branchId, $inventory, $previouslyHadVariants);
+        } catch (ValidationException $e) {
+            $product->update(['has_variants' => $previouslyHadVariants]);
+
+            return back()->withInput()->withErrors($e->errors());
+        }
+
+        $product = $product->fresh(['unit', 'purchaseUnit']);
+        if ($product->has_variants) {
             $this->ensureBranchStock($product, $branchId);
-            $this->applyOpeningStock($inventory, $product, $branchId, $delta, StockMovement::ADJUSTMENT, $this->openingNote($opening, $openingUnit, $product, $conversion));
-            $this->recordBatch($product, $branchId, $delta);
-        } catch (NegativeStockException $e) {
-            return back()->withInput()->with('error', $e->getMessage());
+        } else {
+            $desiredBase = $this->openingToBase($product, $opening, $openingUnit, $conversion);
+            $currentBase = $product->quantityAtBranch($branchId);
+            $delta = $conversion->roundQty($desiredBase - $currentBase);
+
+            try {
+                $this->ensureBranchStock($product, $branchId);
+                $this->applyOpeningStock($inventory, $product, $branchId, $delta, StockMovement::ADJUSTMENT, $this->openingNote($opening, $openingUnit, $product, $conversion));
+                $this->recordBatch($product, $branchId, $delta);
+            } catch (NegativeStockException $e) {
+                return back()->withInput()->with('error', $e->getMessage());
+            }
         }
 
         $after = $product->only(['name', 'sku', 'purchase_price', 'selling_price', 'wholesale_price']);
@@ -483,7 +520,7 @@ class ProductController extends Controller
 
         $branchId = $this->currentBranchId();
         $products = Product::query()
-            ->with(['tax', 'unit', 'purchaseUnit'])
+            ->with(['tax', 'unit', 'purchaseUnit', 'variants'])
             ->availableAtBranch($branchId)
             ->where('is_active', true)
             ->where(function ($query) use ($q) {
@@ -492,6 +529,14 @@ class ProductController extends Controller
                     ->orWhere('barcode', 'like', '%' . $q . '%')
                     ->orWhereHas('sellingUnits', function ($units) use ($q) {
                         $units->where('barcode', 'like', '%' . $q . '%');
+                    })
+                    ->orWhereHas('variants', function ($variants) use ($q) {
+                        $variants->where('is_active', true)
+                            ->where(function ($query) use ($q) {
+                                $query->where('name', 'like', '%' . $q . '%')
+                                    ->orWhere('sku', 'like', '%' . $q . '%')
+                                    ->orWhere('barcode', 'like', '%' . $q . '%');
+                            });
                     });
             })
             ->orderBy('name')
@@ -502,12 +547,11 @@ class ProductController extends Controller
             $conversion = app(UnitConversionService::class);
             $stock = $product->quantityAtBranch($branchId);
 
-            return [
+            $row = [
                 'id' => $product->id,
                 'name' => $product->name,
                 'sku' => $product->sku,
                 'barcode' => $product->barcode,
-                'purchase_price' => (float) $product->purchase_price,
                 'selling_price' => (float) $product->selling_price,
                 'tax_rate' => (float) optional($product->tax)->rate,
                 'stock' => $stock,
@@ -515,7 +559,15 @@ class ProductController extends Controller
                 'purchase_unit' => $conversion->purchaseUnitLabel($product),
                 'purchase_to_base' => $conversion->purchaseFactor($product),
                 'expiry' => optional($product->expiry_date)->format('Y-m-d'),
+                'has_variants' => (bool) $product->has_variants,
+                'variations' => $this->variationChoices($product, $branchId),
             ];
+
+            if (can_view_item_buying_price()) {
+                $row['purchase_price'] = (float) $product->purchase_price;
+            }
+
+            return $row;
         }));
     }
 
@@ -667,7 +719,7 @@ class ProductController extends Controller
             'tax_id' => ['required', Rule::exists('taxes', 'id')->where(function ($query) use ($companyId) {
                 $query->where('company_id', $companyId);
             })],
-            'purchase_price' => 'required|numeric|min:0',
+            'purchase_price' => (can_view_item_buying_price() ? 'required' : 'nullable').'|numeric|min:0',
             'selling_price' => 'required|numeric|min:0',
             'wholesale_price' => 'nullable|numeric|min:0',
             'promo_price' => 'nullable|numeric|min:0',
@@ -679,6 +731,7 @@ class ProductController extends Controller
             'color' => 'nullable|string|max:64',
             'image' => 'nullable|image|max:2048',
             'remove_image' => 'nullable|boolean',
+            'has_variants' => 'nullable|boolean',
             'manage_stock' => 'nullable|boolean',
             'allow_negative_stock' => 'nullable|boolean',
             'for_sale' => 'nullable|boolean',
@@ -688,6 +741,7 @@ class ProductController extends Controller
             'opening_stock_unit' => 'nullable|in:base,purchase',
         ]);
 
+        $data['has_variants'] = $request->boolean('has_variants');
         $data['manage_stock'] = $request->boolean('manage_stock');
         $data['allow_negative_stock'] = $request->boolean('allow_negative_stock');
         $data['for_sale'] = $request->boolean('for_sale');
@@ -710,6 +764,54 @@ class ProductController extends Controller
         $data['branch_id'] = $this->currentBranchId();
 
         return $data;
+    }
+
+    private function syncVariations(Request $request, Product $product, int $branchId, InventoryService $inventory, bool $previouslyEnabled): void
+    {
+        $raw = $request->input('variation_payload');
+        $decoded = is_array($raw) ? $raw : json_decode((string) $raw, true);
+        if (! is_array($decoded)) {
+            $decoded = [];
+        }
+
+        app(ProductVariationService::class)->sync(
+            $product,
+            (bool) $product->has_variants,
+            (array) ($decoded['attributes'] ?? []),
+            (array) ($decoded['variations'] ?? []),
+            $branchId,
+            $inventory,
+            $previouslyEnabled
+        );
+    }
+
+    private function variationChoices(Product $product, ?int $branchId): array
+    {
+        if (! $product->has_variants) {
+            return [];
+        }
+
+        return $product->variants
+            ->where('is_active', true)
+            ->map(function ($variant) use ($product, $branchId) {
+                $qty = $branchId
+                    ? (float) $product->branchStock()->withoutGlobalScope('branch')->where('branch_id', $branchId)->where('product_variant_id', $variant->id)->sum('quantity')
+                    : 0.0;
+
+                $choice = [
+                    'id' => $variant->id,
+                    'name' => $variant->label(),
+                    'sku' => $variant->sku,
+                    'barcode' => $variant->barcode,
+                    'selling_price' => $variant->selling_price !== null ? (float) $variant->selling_price : (float) $product->selling_price,
+                    'stock' => $qty,
+                ];
+                if (can_view_item_buying_price()) {
+                    $choice['purchase_price'] = $variant->purchase_price !== null ? (float) $variant->purchase_price : (float) $product->purchase_price;
+                }
+
+                return $choice;
+            })->values()->all();
     }
 
     private function openingUnitMode(Request $request): string

@@ -297,6 +297,20 @@
     </div>
 </div>
 
+<div class="modal fade" id="sx-pos-variant-modal" tabindex="-1">
+    <div class="modal-dialog" style="max-width:420px;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+                <h4 class="modal-title" id="sx-variant-name">Choose variation</h4>
+            </div>
+            <div class="modal-body">
+                <div class="list-group" id="sx-variant-list"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="sx-pos-sell-modal" tabindex="-1">
     <div class="modal-dialog" style="max-width:380px;">
         <div class="modal-content">
@@ -469,19 +483,21 @@
         return Math.floor((max + 0.000000001) * 10000) / 10000;
     }
 
-    function usedBaseExcept(productId, skipIndex) {
+    function usedBaseExcept(productId, skipIndex, variantId) {
+        var variant = variantId == null ? 0 : variantId;
         var used = 0;
         cart.forEach(function (row, i) {
             if (i === skipIndex || !row.track_stock || String(row.id) !== String(productId)) return;
+            if (String(row.product_variant_id || 0) !== String(variant)) return;
             used += (parseFloat(row.quantity) || 0) * (parseFloat(row.unit_factor) || 1);
         });
         return used;
     }
 
-    function clampLineQty(productId, factor, stock, track, desired, skipIndex) {
+    function clampLineQty(productId, factor, stock, track, desired, skipIndex, variantId) {
         desired = parseFloat(desired) || 0;
         if (!track) return { qty: desired, limited: false, max: null };
-        var max = maxSellQty(stock, factor, usedBaseExcept(productId, skipIndex));
+        var max = maxSellQty(stock, factor, usedBaseExcept(productId, skipIndex, variantId));
         if (desired - max > 0.0000005) {
             return { qty: max, limited: true, max: max };
         }
@@ -504,7 +520,7 @@
         cart.forEach(function (row, i) {
             var price = linePrice(row);
             var lineMax = row.track_stock
-                ? maxSellQty(row.stock_base, row.unit_factor || 1, usedBaseExcept(row.id, i))
+                ? maxSellQty(row.stock_base, row.unit_factor || 1, usedBaseExcept(row.id, i, row.product_variant_id || 0))
                 : null;
             var atMax = lineMax !== null && row.quantity + 0.0000005 >= lineMax;
             html += '<tr class="pos-line-row">';
@@ -537,8 +553,36 @@
         refreshPayPanel();
     }
 
+    var variantItem = null;
+    function openVariationPicker(item) {
+        variantItem = item;
+        $('#sx-variant-name').text(item.name);
+        var html = '';
+        (item.variations || []).forEach(function (variation) {
+            html += '<button type="button" class="list-group-item sx-pick-variant" data-id="' + variation.id + '">' +
+                '<strong>' + escapeHtml(variation.name) + '</strong>' +
+                '<span class="pull-right">' + money(variation.price || variation.selling_price) + '</span><br>' +
+                '<small>' + escapeHtml(variation.sku || variation.barcode || '') + ' · Stock ' + formatStock(variation.qty) + '</small>' +
+                '</button>';
+        });
+        if (!html) html = '<p class="text-muted">This item has no active variations.</p>';
+        $('#sx-variant-list').html(html);
+        $('#sx-pos-variant-modal').modal('show');
+    }
+    $(document).on('click', '.sx-pick-variant', function () {
+        if (!variantItem) return;
+        var id = $(this).data('id');
+        var chosen = $.extend({}, variantItem, { product_variant_id: id, scan_variant_id: id });
+        $('#sx-pos-variant-modal').modal('hide');
+        addProduct(chosen, 1, 'base');
+    });
+
     function addProduct(item, qty, unitKey) {
         qty = parseFloat(qty) || 1;
+        if (item.has_variants && !item.product_variant_id && !item.scan_variant_id) {
+            openVariationPicker(item);
+            return;
+        }
         var units = item.selling_units || [];
         var unit = null;
         if (unitKey) {
@@ -561,29 +605,39 @@
                 factor: item.unit_factor || 1
             };
         }
+        var variant = null;
+        if (item.has_variants) {
+            var variantId = item.product_variant_id || item.scan_variant_id;
+            variant = (item.variations || []).filter(function (row) { return String(row.id) === String(variantId); })[0];
+            if (!variant) {
+                openVariationPicker(item);
+                return;
+            }
+        }
         var rate = item.tax_rate || 0;
-        var selling = Number(unit.selling_price || item.selling_price || 0);
+        var selling = variant ? Number(variant.selling_price || 0) : Number(unit.selling_price || item.selling_price || 0);
         var inclusive = !!item.tax_inclusive;
-        var price = inclusive ? selling : +(selling * (1 + rate / 100)).toFixed(2);
+        var price = variant ? Number(variant.price || selling) : (inclusive ? selling : +(selling * (1 + rate / 100)).toFixed(2));
         var taxAmount = rate > 0
             ? (inclusive ? +(selling * rate / (100 + rate)).toFixed(2) : +(selling * rate / 100).toFixed(2))
             : 0;
-        var key = String(item.id) + ':' + String(unit.key || unit.id || 0);
-        var factor = unitFactorOf(unit);
+        var key = String(item.id) + ':' + String(variant ? variant.id : 0) + ':' + String(unit.key || unit.id || 0);
+        var factor = variant ? 1 : unitFactorOf(unit);
         var track = tracksStock(item);
-        var stock = stockBaseOf(item);
+        var stock = variant ? (parseFloat(variant.qty) || 0) : stockBaseOf(item);
+        var lineName = variant ? (item.name + ' (' + variant.name + ')') : item.name;
         var existingIndex = -1;
         cart.forEach(function (row, i) {
             if (row.line_key === key) existingIndex = i;
         });
         var desired = existingIndex >= 0 ? +(cart[existingIndex].quantity + qty).toFixed(4) : qty;
-        var clamped = clampLineQty(item.id, factor, stock, track, desired, existingIndex);
+        var clamped = clampLineQty(item.id, factor, stock, track, desired, existingIndex, variant ? variant.id : 0);
         if (clamped.qty <= 0) {
-            notifyStock(item.name, 0, unit.name || '');
+            notifyStock(lineName, 0, unit.name || '');
             return;
         }
         if (clamped.limited) {
-            notifyStock(item.name, clamped.qty, unit.name || '');
+            notifyStock(lineName, clamped.qty, unit.name || '');
         }
         if (existingIndex >= 0) {
             cart[existingIndex].quantity = clamped.qty;
@@ -594,13 +648,14 @@
             cart.push({
                 id: item.id,
                 line_key: key,
-                product_unit_id: unit.id || null,
-                sell_as: unit.key || 'base',
-                unit_name: unit.name || '',
+                product_variant_id: variant ? variant.id : 0,
+                product_unit_id: variant ? null : (unit.id || null),
+                sell_as: variant ? 'base' : (unit.key || 'base'),
+                unit_name: variant ? '' : (unit.name || ''),
                 unit_factor: factor,
                 track_stock: track,
                 stock_base: stock,
-                name: item.name,
+                name: lineName,
                 price: price,
                 wholesale_price: amount(unit.wholesale_price) || amount(item.wholesale_price),
                 promo_price: amount(unit.promo_price) || amount(item.promo_price),
@@ -694,6 +749,7 @@
             items: cart.map(function (row) {
                 return {
                     product_id: row.id,
+                    product_variant_id: row.product_variant_id || null,
                     product_unit_id: row.product_unit_id || null,
                     sell_as: row.sell_as || null,
                     quantity: row.quantity,
@@ -853,7 +909,10 @@
         if (typeof item === 'string') {
             item = JSON.parse(item.replace(/&#39;/g, "'"));
         }
-        if (item.packaging) {
+        if (item.has_variants) {
+            if (item.scan_variant_id) addProduct(item, 1, 'base');
+            else openVariationPicker(item);
+        } else if (item.packaging) {
             openSellModal(item, item.scan_sell_as || null);
         } else {
             addProduct(item, 1, item.scan_sell_as || 'base');
@@ -916,7 +975,11 @@
         setTimeout(function () { box.removeClass('is-scan'); }, 180);
     }
     function placeFoundItem(item, fromExactScan) {
-        if (fromExactScan && (item.scan_sell_as || item.scan_unit_id)) {
+        if (item.scan_variant_id || (fromExactScan && item.has_variants && item.scan_variant_id)) {
+            addProduct(item, 1, 'base');
+        } else if (item.has_variants) {
+            openVariationPicker(item);
+        } else if (fromExactScan && (item.scan_sell_as || item.scan_unit_id)) {
             addProduct(item, 1, item.scan_sell_as || 'base');
         } else if (item.packaging) {
             openSellModal(item, item.scan_sell_as || null);
@@ -1003,7 +1066,9 @@
         }
         var item = $(this).data('item');
         if (typeof item === 'string') item = JSON.parse(item.replace(/&#39;/g, "'"));
-        if (item.packaging) {
+        if (item.has_variants) {
+            addProduct(item, 1, 'base');
+        } else if (item.packaging) {
             openSellModal(item, item.scan_sell_as || null);
         } else {
             addProduct(item, 1, item.scan_sell_as || 'base');
@@ -1025,7 +1090,7 @@
             renderCart();
             return;
         }
-        var clamped = clampLineQty(row.id, row.unit_factor || 1, row.stock_base || 0, !!row.track_stock, qty, i);
+        var clamped = clampLineQty(row.id, row.unit_factor || 1, row.stock_base || 0, !!row.track_stock, qty, i, row.product_variant_id || 0);
         if (clamped.limited) {
             notifyStock(row.name, clamped.max, row.unit_name);
         }
@@ -1052,7 +1117,7 @@
         if (!row || !row.track_stock) return;
         var qty = parseFloat($(this).val());
         if (!(qty > 0)) return;
-        var clamped = clampLineQty(row.id, row.unit_factor || 1, row.stock_base || 0, true, qty, i);
+        var clamped = clampLineQty(row.id, row.unit_factor || 1, row.stock_base || 0, true, qty, i, row.product_variant_id || 0);
         if (!clamped.limited) return;
         applyLineQty(i, qty);
     });
@@ -1553,7 +1618,8 @@
             cart = (data.items || []).map(function (item) {
                 return {
                     id: item.id,
-                    line_key: String(item.id) + ':' + String(item.sell_as || item.unit_id || 0),
+                    line_key: String(item.id) + ':' + String(item.product_variant_id || 0) + ':' + String(item.sell_as || item.unit_id || 0),
+                    product_variant_id: item.product_variant_id || 0,
                     product_unit_id: item.unit_id || null,
                     sell_as: item.sell_as || 'base',
                     unit_name: item.unit_name || '',
@@ -1575,7 +1641,7 @@
             });
             cart.forEach(function (row, i) {
                 if (!row.track_stock) return;
-                var clamped = clampLineQty(row.id, row.unit_factor || 1, row.stock_base || 0, true, row.quantity, i);
+                var clamped = clampLineQty(row.id, row.unit_factor || 1, row.stock_base || 0, true, row.quantity, i, row.product_variant_id || 0);
                 if (!clamped.limited) return;
                 row.quantity = clamped.qty;
                 notifyStock(row.name, clamped.max, row.unit_name);

@@ -30,6 +30,10 @@
                             @endforeach
                         </select>
                     </div>
+                    <div class="form-group" id="sx-adjust-variant-wrap" hidden>
+                        <label class="sx-req">Variation *</label>
+                        <select name="product_variant_id" id="sx-adjust-variant" class="form-control"></select>
+                    </div>
                     <div class="form-group">
                         <label class="sx-req">Adjust Qty *</label>
                         <input type="number" step="0.0001" min="0.0001" name="quantity" class="form-control" placeholder="Qty to Adjust" required>
@@ -65,10 +69,12 @@
             <div class="modal-body">
                 <form method="post" id="sx-price-form">
                     @csrf
+                    @if(!empty($canViewCost))
                     <div class="form-group">
                         <label class="sx-req">Purchase Price *</label>
                         <input type="number" step="0.01" min="0" name="purchase_price" id="sx-price-cost" class="form-control" required>
                     </div>
+                    @endif
                     <div class="form-group">
                         <label class="sx-req">Sales Price(Retail) *</label>
                         <input type="number" step="0.01" min="0" name="selling_price" id="sx-price-retail" class="form-control" required>

@@ -157,7 +157,7 @@ class PosController extends Controller
 
         $branchId = $this->currentBranchId();
         $products = Product::query()
-            ->with(['tax', 'unit', 'purchaseUnit', 'sellingUnits'])
+            ->with(['tax', 'unit', 'purchaseUnit', 'sellingUnits', 'variants'])
             ->availableAtBranch($branchId)
             ->where('is_active', true)
             ->where('for_sale', true)
@@ -167,6 +167,13 @@ class PosController extends Controller
                     ->orWhere('barcode', $q)
                     ->orWhereHas('sellingUnits', function ($units) use ($q) {
                         $units->where('barcode', $q);
+                    })
+                    ->orWhereHas('variants', function ($variants) use ($q) {
+                        $variants->where('is_active', true)->where(function ($query) use ($q) {
+                            $query->where('barcode', $q)
+                                ->orWhere('sku', $q)
+                                ->orWhere('name', 'like', '%' . $q . '%');
+                        });
                     });
             })
             ->orderBy('name')
@@ -174,6 +181,17 @@ class PosController extends Controller
             ->get();
 
         $hit = app(UnitConversionService::class)->findByBarcode(auth()->user()->company_id, $q);
+        if ($hit && ! $products->contains(fn (Product $product) => (int) $product->id === (int) $hit['product_id'])) {
+            $extra = Product::query()
+                ->with(['tax', 'unit', 'purchaseUnit', 'sellingUnits', 'variants'])
+                ->availableAtBranch($branchId)
+                ->where('is_active', true)
+                ->where('for_sale', true)
+                ->find($hit['product_id']);
+            if ($extra) {
+                $products->prepend($extra);
+            }
+        }
 
         return response()->json($products->map(function (Product $product) use ($branchId, $hit) {
             $payload = $this->productPayload($product, $branchId);
@@ -183,6 +201,9 @@ class PosController extends Controller
                 }
                 if (! empty($hit['sell_as'])) {
                     $payload['scan_sell_as'] = $hit['sell_as'];
+                }
+                if (! empty($hit['product_variant_id'])) {
+                    $payload['scan_variant_id'] = (int) $hit['product_variant_id'];
                 }
             }
 
@@ -279,11 +300,13 @@ class PosController extends Controller
                         'tax_rate' => (float) $item->tax_rate,
                         'tax_inclusive' => true,
                         'qty' => 0,
-                        'cost' => (float) $item->cost_price,
                         'manage_stock' => false,
                         'allow_negative_stock' => false,
                         'unit_factor' => (float) ($item->unit_factor ?: 1),
                     ];
+                if (! $item->product && can_view_item_buying_price()) {
+                    $payload['cost'] = (float) $item->cost_price;
+                }
                 $payload['qty_sold'] = (float) $item->quantity;
                 $payload['unit_id'] = $item->product_unit_id;
                 $payload['unit_name'] = $item->unit_name;
@@ -300,6 +323,16 @@ class PosController extends Controller
                     : (float) $item->tax_amount;
                 $payload['apply_tax'] = (float) $item->tax_amount > 0;
                 $payload['unit_factor'] = (float) ($item->unit_factor ?: ($payload['unit_factor'] ?? 1));
+                $payload['name'] = $item->name;
+                $payload['product_variant_id'] = (int) ($item->product_variant_id ?? 0);
+                if ($payload['product_variant_id'] > 0 && $branchId) {
+                    $payload['qty'] = app(InventoryService::class)->quantityOnHand(
+                        (int) $item->company_id,
+                        $branchId,
+                        (int) $item->product_id,
+                        $payload['product_variant_id']
+                    );
+                }
 
                 return $payload;
             })->values(),
@@ -558,6 +591,7 @@ class PosController extends Controller
             'discount_amount' => 'nullable|numeric|min:0',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
+            'items.*.product_variant_id' => 'nullable|integer',
             'items.*.product_unit_id' => 'nullable|integer',
             'items.*.sell_as' => 'nullable|string|max:32',
             'items.*.quantity' => 'required|numeric|min:0.0001',
@@ -653,15 +687,29 @@ class PosController extends Controller
         $lines = [];
         $neededBase = [];
         foreach ($data['items'] as $row) {
-            $product = Product::query()->with(['tax', 'unit', 'purchaseUnit', 'sellingUnits'])->findOrFail($row['product_id']);
+            $product = Product::query()->with(['tax', 'unit', 'purchaseUnit', 'sellingUnits', 'variants'])->findOrFail($row['product_id']);
             abort_unless(
                 $product->isAvailableAtBranch($branchId),
                 403,
                 'Item is not available at the active branch.'
             );
-            $unitId = $multiUnit ? ($row['product_unit_id'] ?? null) : null;
-            $sellAs = $multiUnit ? ($row['sell_as'] ?? null) : 'base';
+            $variant = null;
+            $variantId = 0;
+            if ($product->has_variants) {
+                $variantId = (int) ($row['product_variant_id'] ?? 0);
+                $variant = $product->variants->first(function ($candidate) use ($variantId) {
+                    return (int) $candidate->id === $variantId && $candidate->is_active;
+                });
+                if (! $variant) {
+                    throw new InvalidArgumentException('Select a variation for ' . $product->name . '.');
+                }
+            }
+            $unitId = $product->has_variants ? null : ($multiUnit ? ($row['product_unit_id'] ?? null) : null);
+            $sellAs = $product->has_variants ? 'base' : ($multiUnit ? ($row['sell_as'] ?? null) : 'base');
             $unit = $conversion->resolveSellingUnit($product, $unitId, $sellAs);
+            if ($variant && $variant->selling_price !== null && $this->postedUnitPrice($row) === null) {
+                $unit['selling_price'] = (float) $variant->selling_price;
+            }
             $payload = $this->productPayload($product, $branchId, $unit);
             $qty = (float) $row['quantity'];
             $qtyBase = $conversion->toBase($qty, $unit['factor']);
@@ -677,9 +725,14 @@ class PosController extends Controller
                 ? ($inclusive ? round($unitPrice * $qty * $rate / (100 + $rate), 2) : round($unitPrice * $qty * $rate / 100, 2))
                 : 0;
             $lineTotal = round($displayPrice * $qty, 2);
-            $costEach = $conversion->costPerSellingUnit($product, $unit['factor']);
+            $costPerBase = ($variant && $variant->purchase_price !== null)
+                ? (float) $variant->purchase_price
+                : $conversion->costPerBase($product);
+            $costEach = round($costPerBase * (float) ($unit['factor'] ?? 1), 4);
             $lines[] = [
                 'product' => $product,
+                'variant' => $variant,
+                'variant_id' => $variantId,
                 'quantity' => $qty,
                 'quantity_base' => $qtyBase,
                 'unit_id' => $unit['id'],
@@ -688,24 +741,27 @@ class PosController extends Controller
                 'unit_price' => $unitPrice,
                 'display_price' => $displayPrice,
                 'cost_price' => $costEach,
-                'cost_per_base' => $conversion->costPerBase($product),
+                'cost_per_base' => $costPerBase,
                 'tax_rate' => $rate,
                 'tax_amount' => $lineTax,
                 'line_total' => $lineTotal,
             ];
-            $neededBase[$product->id] = ($neededBase[$product->id] ?? 0) + $qtyBase;
+            $stockKey = $product->id . ':' . $variantId;
+            $neededBase[$stockKey] = ($neededBase[$stockKey] ?? 0) + $qtyBase;
         }
 
         if ($inventory && $status === Sale::STATUS_COMPLETED) {
-            foreach ($neededBase as $productId => $need) {
-                $match = collect($lines)->first(function ($line) use ($productId) {
-                    return $line['product']->id === $productId;
+            foreach ($neededBase as $stockKey => $need) {
+                [$productId, $variantId] = array_pad(explode(':', (string) $stockKey, 2), 2, 0);
+                $match = collect($lines)->first(function ($line) use ($productId, $variantId) {
+                    return (int) $line['product']->id === (int) $productId
+                        && (int) $line['variant_id'] === (int) $variantId;
                 });
                 $product = $match['product'];
                 if (! $product->manage_stock || $product->allow_negative_stock) {
                     continue;
                 }
-                $onHand = $inventory->quantityOnHand($companyId, $branchId, $productId);
+                $onHand = $inventory->quantityOnHand($companyId, $branchId, (int) $productId, (int) $variantId);
                 if ($need - $onHand > 0.0000005) {
                     throw NegativeStockException::available(
                         $conversion->formatQty($onHand) . ' ' . $conversion->baseUnitLabel($product)
@@ -777,9 +833,12 @@ class PosController extends Controller
                 'company_id' => $companyId,
                 'sale_id' => $sale->id,
                 'product_id' => $line['product']->id,
+                'product_variant_id' => $line['variant_id'],
                 'product_unit_id' => $line['unit_id'],
-                'name' => $line['product']->name,
-                'sku' => $line['product']->sku,
+                'name' => $line['variant']
+                    ? $line['product']->name . ' (' . $line['variant']->label() . ')'
+                    : $line['product']->name,
+                'sku' => ($line['variant'] && $line['variant']->sku) ? $line['variant']->sku : $line['product']->sku,
                 'quantity' => $line['quantity'],
                 'quantity_base' => $line['quantity_base'],
                 'unit_name' => $line['unit_name'],
@@ -796,6 +855,7 @@ class PosController extends Controller
                     'company_id' => $companyId,
                     'branch_id' => $branchId,
                     'product_id' => $line['product']->id,
+                    'product_variant_id' => $line['variant_id'],
                     'type' => StockMovement::POS_SALE,
                     'quantity_out' => $line['quantity_base'],
                     'unit_cost' => $line['cost_per_base'],
@@ -969,7 +1029,6 @@ class PosController extends Controller
             'qty_display' => $conversion->stockDisplay($product, $stock, $displayMode),
             'manage_stock' => (bool) $product->manage_stock,
             'allow_negative_stock' => (bool) $product->allow_negative_stock,
-            'cost' => $conversion->costPerSellingUnit($product, $unit['factor'] ?? 1),
             'image' => $product->image_path ? asset('storage/' . ltrim($product->image_path, '/')) : null,
             'unit_id' => $unit['id'] ?? null,
             'unit_name' => $unit['name'] ?? (optional($product->unit)->name ?: 'Unit'),
@@ -977,10 +1036,51 @@ class PosController extends Controller
             'sell_as' => $unit['key'] ?? 'base',
             'packaging' => $conversion->hasPackaging($product),
             'selling_units' => $units,
-            'multi_unit' => $multiUnit && count($units) > 1,
+            'multi_unit' => $multiUnit && count($units) > 1 && ! $product->has_variants,
+            'has_variants' => (bool) $product->has_variants,
+            'variations' => $this->variationPayload($product, $branchId, $inclusive, $rate),
         ];
 
+        if (can_view_item_buying_price()) {
+            $payload['cost'] = $conversion->costPerSellingUnit($product, $unit['factor'] ?? 1);
+        }
+
         return $payload;
+    }
+
+    private function variationPayload(Product $product, ?int $branchId, bool $inclusive, float $rate): array
+    {
+        if (! $product->has_variants) {
+            return [];
+        }
+
+        $product->loadMissing('variants');
+        $quantities = collect();
+        if ($branchId) {
+            $quantities = ProductBranchStock::query()
+                ->withoutGlobalScope('branch')
+                ->where('branch_id', $branchId)
+                ->where('product_id', $product->id)
+                ->where('product_variant_id', '>', 0)
+                ->pluck('quantity', 'product_variant_id');
+        }
+
+        return $product->variants
+            ->where('is_active', true)
+            ->map(function ($variant) use ($product, $quantities, $inclusive, $rate) {
+                $selling = $variant->selling_price !== null ? (float) $variant->selling_price : (float) $product->selling_price;
+                $price = $inclusive ? $selling : round($selling * (1 + $rate / 100), 2);
+
+                return [
+                    'id' => $variant->id,
+                    'name' => $variant->label(),
+                    'sku' => $variant->sku,
+                    'barcode' => $variant->barcode,
+                    'selling_price' => $selling,
+                    'price' => $price,
+                    'qty' => (float) ($quantities[$variant->id] ?? 0),
+                ];
+            })->values()->all();
     }
 
     private function walkInCustomer(): Customer

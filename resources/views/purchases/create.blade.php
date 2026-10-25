@@ -112,12 +112,18 @@
                 <tr>
                     <th>Item Name</th>
                     <th>Quantity</th>
+                    @if(can_view_item_buying_price())
                     <th>Cost price</th>
+                    @endif
                     <th>Tax %</th>
+                    @if(can_view_item_buying_price())
                     <th>Tax Amt</th>
+                    @endif
                     <th>Discount(%)</th>
+                    @if(can_view_item_buying_price())
                     <th>Unit Cost</th>
                     <th>Total Amount</th>
+                    @endif
                     <th>Unit Sales</th>
                     <th>Stock</th>
                     <th>Expiry</th>
@@ -140,10 +146,14 @@
             </div>
         </div>
         <div class="sx-po-totals-right">
+            @if(can_view_item_buying_price())
             <div class="sx-po-total-row"><span>Subtotal</span><strong>Ksh <span id="sx-po-subtotal">0.00</span></strong></div>
             <div class="sx-po-total-row"><span>Round Off</span><input type="number" step="0.01" name="round_off" id="sx-po-round" class="form-control input-sm" value="{{ old('round_off', $isEdit ? number_format((float) $purchase->round_off, 2, '.', '') : '0.00') }}"></div>
             <div class="sx-po-total-row"><span>Grand Total</span><strong>Ksh <span id="sx-po-grand">0.00</span></strong></div>
             <div class="sx-po-total-row"><span>Stock Value</span><strong>Ksh <span id="sx-po-stock-value">0.00</span></strong></div>
+            @else
+            <input type="hidden" name="round_off" id="sx-po-round" value="0">
+            @endif
         </div>
     </div>
 
@@ -278,6 +288,7 @@
 @push('scripts')
 <script>
 (function ($) {
+    var canViewCost = @json(can_view_item_buying_price());
     var searchUrl = @json(route('products.search'));
     var supplierUrl = @json(route('suppliers.store'));
     var token = $('meta[name="csrf-token"]').attr('content');
@@ -337,14 +348,14 @@
         var row = $(
             '<tr>' +
                 '<td><input type="hidden" name="items[' + i + '][product_id]" value="' + item.id + '">' +
+                    '<input type="hidden" name="items[' + i + '][product_variant_id]" value="' + (item.product_variant_id || '') + '">' +
                     '<input type="text" class="form-control" value="' + escapeHtml(item.name) + (item.purchase_unit ? ' (' + item.purchase_unit + ')' : '') + '" readonly></td>' +
                 '<td><input type="number" step="0.01" min="0.01" name="items[' + i + '][quantity]" class="form-control sx-po-qty" value="' + qty + '" required></td>' +
-                '<td><input type="number" step="0.01" min="0" name="items[' + i + '][unit_cost]" class="form-control sx-po-cost" value="' + money(item.purchase_price) + '" required></td>' +
+                (canViewCost ? '<td><input type="number" step="0.01" min="0" name="items[' + i + '][unit_cost]" class="form-control sx-po-cost" value="' + money(item.purchase_price) + '" required></td>' : '') +
                 '<td><input type="number" step="0.01" min="0" name="items[' + i + '][tax_rate]" class="form-control sx-po-tax" value="' + money(item.tax_rate) + '"></td>' +
-                '<td><input type="text" class="form-control sx-po-taxamt" readonly tabindex="-1"></td>' +
+                (canViewCost ? '<td><input type="text" class="form-control sx-po-taxamt" readonly tabindex="-1"></td>' : '') +
                 '<td><input type="number" step="0.01" min="0" name="items[' + i + '][discount_percent]" class="form-control sx-po-disc" value="' + money(disc) + '"></td>' +
-                '<td><input type="text" class="form-control sx-po-unitcost" readonly tabindex="-1"></td>' +
-                '<td><input type="text" class="form-control sx-po-linetotal" readonly tabindex="-1"></td>' +
+                (canViewCost ? '<td><input type="text" class="form-control sx-po-unitcost" readonly tabindex="-1"></td><td><input type="text" class="form-control sx-po-linetotal" readonly tabindex="-1"></td>' : '') +
                 '<td><input type="number" step="0.01" min="0" name="items[' + i + '][selling_price]" class="form-control" value="' + money(item.selling_price) + '"></td>' +
                 '<td><input type="text" class="form-control" value="' + money(item.stock) + '" readonly></td>' +
                 '<td><input type="date" name="items[' + i + '][expiry_date]" class="form-control" value="' + (item.expiry || '') + '"></td>' +
@@ -362,7 +373,34 @@
         $('#sx-po-results').empty().attr('hidden', true);
     }
 
+    function purchaseChoices(items) {
+        var rows = [];
+        (items || []).forEach(function (item) {
+            if (item.product_variant_id) {
+                rows.push(item);
+                return;
+            }
+            if (item.has_variants && item.variations && item.variations.length) {
+                item.variations.forEach(function (variation) {
+                    rows.push($.extend({}, item, {
+                        name: item.name + ' (' + variation.name + ')',
+                        sku: variation.sku || item.sku,
+                        barcode: variation.barcode || item.barcode,
+                        selling_price: variation.selling_price,
+                        purchase_price: variation.purchase_price != null ? variation.purchase_price : item.purchase_price,
+                        stock: variation.stock,
+                        product_variant_id: variation.id
+                    }));
+                });
+                return;
+            }
+            rows.push(item);
+        });
+        return rows;
+    }
+
     function showResults(items) {
+        items = purchaseChoices(items);
         var box = $('#sx-po-results').empty();
         if (!items.length) {
             box.append('<div class="sx-label-empty">No matching items</div>').removeAttr('hidden');
@@ -386,8 +424,9 @@
         if (!q) { hideResults(); return; }
         timer = setTimeout(function () {
             $.getJSON(searchUrl, { q: q }).done(function (items) {
-                lastItem = items[0] || null;
-                showResults(items);
+                var choices = purchaseChoices(items);
+                lastItem = choices[0] || null;
+                showResults(choices);
             }).fail(hideResults);
         }, 250);
     });

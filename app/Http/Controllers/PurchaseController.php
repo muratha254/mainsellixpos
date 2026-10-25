@@ -20,6 +20,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class PurchaseController extends Controller
 {
@@ -81,8 +82,9 @@ class PurchaseController extends Controller
             'round_off' => 'nullable|numeric',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
+            'items.*.product_variant_id' => 'nullable|integer',
             'items.*.quantity' => 'required|numeric|min:0.0001',
-            'items.*.unit_cost' => 'required|numeric|min:0',
+            'items.*.unit_cost' => (can_view_item_buying_price() ? 'required' : 'nullable').'|numeric|min:0',
             'items.*.tax_rate' => 'nullable|numeric|min:0',
             'items.*.discount_percent' => 'nullable|numeric|min:0',
             'items.*.selling_price' => 'nullable|numeric|min:0',
@@ -102,7 +104,8 @@ class PurchaseController extends Controller
         $discountTotal = 0;
         foreach ($data['items'] as $line) {
             $qty = (float) $line['quantity'];
-            $cost = (float) $line['unit_cost'];
+            $product = Product::query()->findOrFail($line['product_id']);
+            $cost = $this->submittedUnitCost($line, $product);
             $taxRate = (float) ($line['tax_rate'] ?? 0);
             $discPct = (float) ($line['discount_percent'] ?? 0);
             $base = $qty * $cost;
@@ -113,9 +116,11 @@ class PurchaseController extends Controller
             $subtotal += $lineTotal;
             $taxTotal += $taxAmt;
             $discountTotal += $discountAmt;
-            $product = Product::query()->findOrFail($line['product_id']);
+            $chosen = $this->purchaseVariant($product, $line);
             $lines[] = $this->withPurchaseConversion([
                 'product' => $product,
+                'product_variant_id' => $chosen['id'],
+                'description' => $chosen['name'],
                 'quantity' => $qty,
                 'unit_cost' => $cost,
                 'selling_price' => (float) ($line['selling_price'] ?? $product->selling_price),
@@ -195,7 +200,8 @@ class PurchaseController extends Controller
                         'company_id' => $companyId,
                         'purchase_order_id' => $purchase->id,
                         'product_id' => $line['product']->id,
-                        'description' => $line['product']->name,
+                        'product_variant_id' => $line['product_variant_id'] ?? 0,
+                        'description' => $line['description'] ?? $line['product']->name,
                         'unit_name' => $line['unit_name'],
                         'unit_factor' => $line['unit_factor'],
                         'quantity' => $line['quantity'],
@@ -216,6 +222,7 @@ class PurchaseController extends Controller
                             'company_id' => $companyId,
                             'branch_id' => $branchId,
                             'product_id' => $line['product']->id,
+                            'product_variant_id' => $line['product_variant_id'] ?? 0,
                             'type' => \App\Models\StockMovement::PURCHASE_RECEIPT,
                             'quantity_in' => $line['quantity_base'],
                             'unit_cost' => $line['cost_per_base'],
@@ -351,8 +358,9 @@ class PurchaseController extends Controller
             'round_off' => 'nullable|numeric',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
+            'items.*.product_variant_id' => 'nullable|integer',
             'items.*.quantity' => 'required|numeric|min:0.0001',
-            'items.*.unit_cost' => 'required|numeric|min:0',
+            'items.*.unit_cost' => (can_view_item_buying_price() ? 'required' : 'nullable').'|numeric|min:0',
             'items.*.tax_rate' => 'nullable|numeric|min:0',
             'items.*.discount_percent' => 'nullable|numeric|min:0',
             'items.*.selling_price' => 'nullable|numeric|min:0',
@@ -401,7 +409,8 @@ class PurchaseController extends Controller
                     'company_id' => $companyId,
                     'purchase_order_id' => $purchase->id,
                     'product_id' => $line['product']->id,
-                    'description' => $line['product']->name,
+                    'product_variant_id' => $line['product_variant_id'] ?? 0,
+                    'description' => $line['description'] ?? $line['product']->name,
                     'unit_name' => $line['unit_name'] ?? null,
                     'unit_factor' => $line['unit_factor'] ?? 1,
                     'quantity' => $line['quantity'],
@@ -619,7 +628,7 @@ class PurchaseController extends Controller
         return view('purchases.print', array_merge(fleet_shared_view_data(), [
             'purchase' => $purchase,
             'mode' => $mode,
-            'hidePrices' => $mode === 'noprice',
+            'hidePrices' => $mode === 'noprice' || ! can_view_item_buying_price(),
             'thermal' => $mode === 'thermal',
         ]));
     }
@@ -682,6 +691,7 @@ class PurchaseController extends Controller
                     'company_id' => $purchase->company_id,
                     'branch_id' => $purchase->branch_id,
                     'product_id' => $item->product_id,
+                    'product_variant_id' => (int) ($item->product_variant_id ?? 0),
                     'type' => \App\Models\StockMovement::PURCHASE_RECEIPT,
                     'quantity_in' => $qtyBase,
                     'unit_cost' => $costPerBase,
@@ -741,6 +751,36 @@ class PurchaseController extends Controller
         ]);
     }
 
+    private function purchaseVariant(Product $product, array $line): array
+    {
+        if (! $product->has_variants) {
+            return ['id' => 0, 'name' => $product->name];
+        }
+
+        $variant = $product->variants()
+            ->where('is_active', true)
+            ->find((int) ($line['product_variant_id'] ?? 0));
+        if (! $variant) {
+            throw ValidationException::withMessages([
+                'items' => 'Select a variation for ' . $product->name . '.',
+            ]);
+        }
+
+        return [
+            'id' => (int) $variant->id,
+            'name' => $product->name . ' (' . $variant->label() . ')',
+        ];
+    }
+
+    private function submittedUnitCost(array $line, Product $product): float
+    {
+        if (! can_view_item_buying_price()) {
+            return (float) $product->purchase_price;
+        }
+
+        return (float) ($line['unit_cost'] ?? $product->purchase_price);
+    }
+
     private function purchaseFormData(?PurchaseOrder $purchase = null): array
     {
         $statuses = collect(config('sellix.purchase_statuses', []))
@@ -759,10 +799,9 @@ class PurchaseController extends Controller
             $purchase->loadMissing(['items.product']);
             foreach ($purchase->items as $item) {
                 $product = $item->product;
-                $existingItems[] = [
+                $row = [
                     'id' => (int) $item->product_id,
                     'name' => $item->description ?: optional($product)->name,
-                    'purchase_price' => (float) $item->unit_cost,
                     'selling_price' => (float) ($item->selling_price ?: optional($product)->selling_price),
                     'tax_rate' => (float) $item->tax_rate,
                     'discount_percent' => (float) $item->discount_percent,
@@ -771,6 +810,10 @@ class PurchaseController extends Controller
                     'purchase_unit' => $product ? app(\App\Services\UnitConversionService::class)->purchaseUnitLabel($product) : '',
                     'expiry' => optional($item->expiry_date)->format('Y-m-d'),
                 ];
+                if (can_view_item_buying_price()) {
+                    $row['purchase_price'] = (float) $item->unit_cost;
+                }
+                $existingItems[] = $row;
             }
         }
 
@@ -796,7 +839,8 @@ class PurchaseController extends Controller
 
         foreach ($data['items'] as $line) {
             $qty = (float) $line['quantity'];
-            $cost = (float) $line['unit_cost'];
+            $product = Product::query()->findOrFail($line['product_id']);
+            $cost = $this->submittedUnitCost($line, $product);
             $taxRate = (float) ($line['tax_rate'] ?? 0);
             $discPct = (float) ($line['discount_percent'] ?? 0);
             $base = $qty * $cost;
@@ -807,9 +851,11 @@ class PurchaseController extends Controller
             $subtotal += $lineTotal;
             $taxTotal += $taxAmt;
             $discountTotal += $discountAmt;
-            $product = Product::query()->findOrFail($line['product_id']);
+            $chosen = $this->purchaseVariant($product, $line);
             $lines[] = $this->withPurchaseConversion([
                 'product' => $product,
+                'product_variant_id' => $chosen['id'],
+                'description' => $chosen['name'],
                 'quantity' => $qty,
                 'unit_cost' => $cost,
                 'selling_price' => (float) ($line['selling_price'] ?? $product->selling_price),

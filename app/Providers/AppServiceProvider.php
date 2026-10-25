@@ -33,6 +33,13 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot()
     {
+        if (! function_exists('can_view_item_buying_price')) {
+            function can_view_item_buying_price(): bool
+            {
+                return true;
+            }
+        }
+
         $appUrl = config('app.url');
         if ($appUrl && ! app()->environment('local')) {
             URL::forceRootUrl($appUrl);

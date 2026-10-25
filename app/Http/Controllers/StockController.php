@@ -27,7 +27,7 @@ class StockController extends Controller
         );
 
         $products = Product::query()
-            ->with(['category', 'brand', 'unit', 'tax', 'purchaseUnit'])
+            ->with(['category', 'brand', 'unit', 'tax', 'purchaseUnit', 'variants'])
             ->availableAtBranch($branchId)
             ->where('manage_stock', true)
             ->when($request->filled('category_id'), function ($query) use ($request) {
@@ -46,10 +46,39 @@ class StockController extends Controller
             ->groupBy('product_id')
             ->pluck('quantity', 'product_id');
 
+        $variantStock = ProductBranchStock::query()
+            ->withoutGlobalScope('branch')
+            ->when($branchId, function ($query) use ($branchId) {
+                $query->where('branch_id', $branchId);
+            })
+            ->whereIn('product_id', $products->pluck('id'))
+            ->where('product_variant_id', '>', 0)
+            ->get(['product_id', 'product_variant_id', 'quantity']);
+
+        $variationChoices = [];
+        foreach ($products as $product) {
+            $variationChoices[$product->id] = $product->has_variants
+                ? $product->variants->where('is_active', true)->map(function ($variant) use ($product, $variantStock) {
+                    $row = $variantStock->first(function ($stockRow) use ($product, $variant) {
+                        return (int) $stockRow->product_id === (int) $product->id
+                            && (int) $stockRow->product_variant_id === (int) $variant->id;
+                    });
+
+                    return [
+                        'id' => $variant->id,
+                        'name' => $variant->label(),
+                        'stock' => $row ? (float) $row->quantity : 0,
+                    ];
+                })->values()
+                : [];
+        }
+
         return view('stock.manager', array_merge(fleet_shared_view_data(), $this->catalogLookups(), [
             'activeMenu' => 'stock.manager',
             'products' => $products,
             'stock' => $stock,
+            'variantStock' => $variantStock,
+            'variationChoices' => $variationChoices,
             'filters' => [
                 'category_id' => $request->input('category_id'),
                 'branch_id' => $branchId,
@@ -79,6 +108,7 @@ class StockController extends Controller
             'control_account' => 'required|in:' . implode(',', $accounts),
             'quantity' => 'required|numeric|min:0.0001',
             'adjust_unit' => 'nullable|in:base,purchase',
+            'product_variant_id' => 'nullable|integer',
             'notes' => 'nullable|string|max:1000',
         ]);
 
@@ -100,10 +130,22 @@ class StockController extends Controller
             $type = StockMovement::ISSUE;
         }
 
+        $variantId = (int) ($data['product_variant_id'] ?? 0);
+        if ($product->has_variants) {
+            $variant = $product->variants()->where('is_active', true)->find($variantId);
+            if (! $variant) {
+                return back()->withInput()->with('error', 'Select a variation before adjusting stock.');
+            }
+            $variantId = (int) $variant->id;
+        } else {
+            $variantId = 0;
+        }
+
         $payload = [
             'company_id' => $product->company_id,
             'branch_id' => (int) $data['branch_id'],
             'product_id' => $product->id,
+            'product_variant_id' => $variantId,
             'type' => $type,
             'unit_cost' => $conversion->costPerBase($product),
             'unit_name' => $unitName,
@@ -149,7 +191,7 @@ class StockController extends Controller
         $accounts = array_keys(config('sellix.control_accounts', ['migration_control' => 'Migration Control']));
 
         $data = $request->validate([
-            'purchase_price' => 'required|numeric|min:0',
+            'purchase_price' => (can_view_item_buying_price() ? 'required' : 'nullable').'|numeric|min:0',
             'selling_price' => 'required|numeric|min:0',
             'wholesale_price' => 'required|numeric|min:0',
             'promo_price' => 'required|numeric|min:0',
@@ -157,8 +199,11 @@ class StockController extends Controller
         ]);
 
         $before = $product->only(['name', 'purchase_price', 'selling_price', 'wholesale_price', 'promo_price']);
+        $purchasePrice = can_view_item_buying_price()
+            ? $data['purchase_price']
+            : $product->purchase_price;
         $product->update([
-            'purchase_price' => $data['purchase_price'],
+            'purchase_price' => $purchasePrice,
             'selling_price' => $data['selling_price'],
             'wholesale_price' => $data['wholesale_price'],
             'promo_price' => $data['promo_price'],
@@ -166,7 +211,7 @@ class StockController extends Controller
 
         $audit->record('price_change', 'products', $product, $before, [
             'name' => $product->name,
-            'purchase_price' => $data['purchase_price'],
+            'purchase_price' => $purchasePrice,
             'selling_price' => $data['selling_price'],
             'wholesale_price' => $data['wholesale_price'],
             'promo_price' => $data['promo_price'],
@@ -223,9 +268,11 @@ class StockController extends Controller
             'activeMenu' => 'stock.issued',
             'products' => $products,
             'selectedBranchId' => $this->currentBranchId(),
-            'productPrices' => $products->mapWithKeys(function (Product $product) {
-                return [$product->id => (float) $product->purchase_price];
-            }),
+            'productPrices' => can_view_item_buying_price()
+                ? $products->mapWithKeys(function (Product $product) {
+                    return [$product->id => (float) $product->purchase_price];
+                })
+                : collect(),
         ]));
     }
 
@@ -256,7 +303,9 @@ class StockController extends Controller
                         'product_id' => $product->id,
                         'type' => StockMovement::ISSUE,
                         'quantity_out' => $line['quantity'],
-                        'unit_cost' => $line['unit_price'] ?? $product->purchase_price,
+                        'unit_cost' => can_view_item_buying_price()
+                            ? ($line['unit_price'] ?? $product->purchase_price)
+                            : $product->purchase_price,
                         'user_id' => auth()->id(),
                         'notes' => $line['notes'] ?? 'Issued',
                         'reference_number' => 'ISSUED',

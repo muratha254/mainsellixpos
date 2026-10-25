@@ -142,7 +142,7 @@
                     <th>Branch</th>
                     <th>Date</th>
                     <th>Expiry</th>
-                    <th>Cost P</th>
+                    @if(can_view_item_buying_price())<th>Cost P</th>@endif
                     <th>Retail P</th>
                     <th>Wholesale P</th>
                     <th>Promotion P</th>
@@ -159,7 +159,7 @@
                         <td>{{ optional($batch->branch)->name }}</td>
                         <td>{{ optional($batch->batch_date)->format('Y-m-d') }}</td>
                         <td>{{ optional($batch->expiry_date)->format('Y-m-d') }}</td>
-                        <td>{{ number_format((float) $batch->cost_price, 2) }}</td>
+                        @if(can_view_item_buying_price())<td>{{ number_format((float) $batch->cost_price, 2) }}</td>@endif
                         <td>{{ number_format((float) $batch->retail_price, 2) }}</td>
                         <td>{{ number_format((float) $batch->wholesale_price, 2) }}</td>
                         <td>{{ number_format((float) $batch->promo_price, 2) }}</td>
@@ -194,6 +194,53 @@
     </div>
 </div>
 
+@if($product->has_variants)
+<div class="sx-profile-section">
+    <div class="sx-orange-bar">Variations</div>
+    <div class="table-responsive">
+        <table class="table table-bordered sx-cyan-table">
+            <thead>
+                <tr>
+                    <th>Variation</th>
+                    <th>SKU</th>
+                    <th>Barcode</th>
+                    @if(can_view_item_buying_price())<th>Purchase Price</th>@endif
+                    <th>Sale Price</th>
+                    <th>Available Stock</th>
+                    <th>Low Stock</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse($product->variants as $variant)
+                    <tr>
+                        <td>{{ $variant->label() }}</td>
+                        <td>{{ $variant->sku ?: '—' }}</td>
+                        <td>{{ $variant->barcode ?: '—' }}</td>
+                        @if(can_view_item_buying_price())
+                            <td>{{ $variant->purchase_price !== null ? number_format((float) $variant->purchase_price, 2) : '—' }}</td>
+                        @endif
+                        <td>{{ $variant->selling_price !== null ? number_format((float) $variant->selling_price, 2) : number_format((float) $product->selling_price, 2) }}</td>
+                        <td>{{ number_format((float) ($variationStock[$variant->id] ?? 0), 2) }}</td>
+                        <td>{{ $variant->reorder_level !== null ? $variant->reorder_level : '—' }}</td>
+                        <td>
+                            @if($variant->is_active)
+                                <span class="label label-success">Active</span>
+                            @else
+                                <span class="label label-default">Inactive</span>
+                            @endif
+                        </td>
+                    </tr>
+                @empty
+                    <tr><td colspan="8">No variations yet. Edit the item to add them.</td></tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+    <p class="help-block">Edit the item to add, change, or deactivate a variation. Variations with sales or stock history stay on the item.</p>
+</div>
+@endif
+
 <div class="sx-profile-section">
     <div class="sx-orange-bar">Child Item</div>
     <div class="table-responsive">
@@ -202,7 +249,7 @@
                 <tr>
                     <th>Item Name</th>
                     <th>Branch</th>
-                    <th>Purchase Price</th>
+                    @if(can_view_item_buying_price())<th>Purchase Price</th>@endif
                     <th>Sale Price</th>
                     <th>Available Stock</th>
                     <th>Reorder Level</th>
@@ -216,7 +263,7 @@
                     <tr>
                         <td>{{ $child->name }}</td>
                         <td>{{ $currentBranch }}</td>
-                        <td>{{ number_format((float) $child->purchase_price, 2) }}</td>
+                        @if(can_view_item_buying_price())<td>{{ number_format((float) $child->purchase_price, 2) }}</td>@endif
                         <td>{{ number_format((float) $child->selling_price, 2) }}</td>
                         <td>{{ number_format((float) ($childStock[$child->id] ?? 0), 2) }}</td>
                         <td>{{ (float) $child->reorder_level == (int) $child->reorder_level ? (int) $child->reorder_level : $child->reorder_level }}</td>

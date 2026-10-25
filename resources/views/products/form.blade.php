@@ -174,6 +174,43 @@
             <div class="row">
                 <div class="col-md-3">
                     <div class="form-group">
+                        <label>Has Variations <i class="fa fa-info-circle sx-info" title="Each combination is its own stock item"></i></label>
+                        <select name="has_variants" id="sx-has-variants" class="form-control">
+                            <option value="0" @if(old('has_variants', $product->has_variants ? '1' : '0') == '0') selected @endif>No</option>
+                            <option value="1" @if(old('has_variants', $product->has_variants ? '1' : '0') == '1') selected @endif>Yes</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div id="sx-variation-builder" hidden>
+                <input type="hidden" name="variation_payload" id="sx-variation-payload" value="">
+                <div class="sx-orange-bar">Variation attributes</div>
+                <p class="help-block">Name each attribute yourself, then list its values. Sellix builds one stock item for every combination.</p>
+                <div id="sx-variation-attributes"></div>
+                <button type="button" class="btn btn-default btn-sm" id="sx-add-attribute">Add attribute</button>
+                <div id="sx-variation-warning" class="text-danger" style="margin-top:8px;"></div>
+                <div class="table-responsive" style="margin-top:12px;">
+                    <table class="table table-bordered" id="sx-variation-table">
+                        <thead>
+                            <tr>
+                                <th>Variation</th>
+                                <th>SKU</th>
+                                <th>Barcode</th>
+                                @if(can_view_item_buying_price())<th>Purchase cost</th>@endif
+                                <th>Selling price</th>
+                                <th>Opening stock</th>
+                                <th>Low stock</th>
+                                <th>Active</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="form-group">
                         <label class="sx-req">Tax Category*</label>
                         <select name="tax_id" class="form-control" required>
                             <option value="">-Select-</option>
@@ -183,12 +220,14 @@
                         </select>
                     </div>
                 </div>
+                @if(can_view_item_buying_price())
                 <div class="col-md-3">
                     <div class="form-group">
                         <label class="sx-req">Purchase Price*</label>
                         <input type="number" step="0.01" min="0" name="purchase_price" id="purchase_price" class="form-control" placeholder="Total Price with Tax Amount" value="{{ old('purchase_price', $isEdit ? $product->purchase_price : '') }}" required>
                     </div>
                 </div>
+                @endif
                 <div class="col-md-3">
                     <div class="form-group">
                         <label class="sx-req">Tax Type*</label>
@@ -198,12 +237,14 @@
                         </select>
                     </div>
                 </div>
+                @if(can_view_item_buying_price())
                 <div class="col-md-3">
                     <div class="form-group">
                         <label>Profit Margin(%)</label>
                         <input type="number" step="0.01" name="profit_margin" id="profit_margin" class="form-control" value="{{ old('profit_margin', $product->profit_margin ?? 0) }}">
                     </div>
                 </div>
+                @endif
             </div>
 
             <div class="row">
@@ -234,7 +275,7 @@
             </div>
 
             <div class="row">
-                <div class="col-md-3">
+                <div class="col-md-3" id="sx-parent-stock">
                     <div class="form-group">
                         <label>{{ $isEdit ? 'Opening Stock' : 'New Opening Stock' }}</label>
                         <input type="number" step="0.01" name="opening_stock" id="opening_stock" class="form-control" placeholder="-/+" value="{{ old('opening_stock', $isEdit ? ($openingStock ?? '') : '') }}">
@@ -411,6 +452,21 @@
 @endsection
 
 @push('scripts')
+@php
+    $variationSeed = $variationEditor ?? ['enabled' => false, 'attributes' => [], 'variations' => []];
+    if (old('variation_payload')) {
+        $decodedSeed = json_decode((string) old('variation_payload'), true);
+        if (is_array($decodedSeed)) {
+            $variationSeed['attributes'] = $decodedSeed['attributes'] ?? [];
+            $variationSeed['variations'] = $decodedSeed['variations'] ?? [];
+        }
+    }
+@endphp
+<script>
+window.SellixVariationSeed = @json($variationSeed);
+window.SellixVariationCanCost = @json(can_view_item_buying_price());
+</script>
+<script src="{{ asset('js/sellix-variations.js') }}?v=1"></script>
 <script>
 (function () {
     var form = document.querySelector('.sx-item-form');

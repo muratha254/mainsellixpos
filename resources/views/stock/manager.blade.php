@@ -135,7 +135,7 @@
                                     <ul class="dropdown-menu dropdown-menu-right sx-action-menu">
                                         @if(!empty($canAdjust))
                                             <li>
-                                                <a href="#" class="sx-open-adjust" data-url="{{ route('stock.adjust', $product) }}">
+                                                <a href="#" class="sx-open-adjust" data-url="{{ route('stock.adjust', $product) }}" data-variations='@json($variationChoices[$product->id] ?? [])'>
                                                     <i class="fa fa-balance-scale"></i> Adjust Stock
                                                 </a>
                                             </li>
@@ -144,7 +144,7 @@
                                             <li>
                                                 <a href="#" class="sx-open-price"
                                                     data-url="{{ route('stock.price', $product) }}"
-                                                    data-cost="{{ $product->purchase_price }}"
+                                                    @if($canViewCost) data-cost="{{ $product->purchase_price }}" @endif
                                                     data-retail="{{ $product->selling_price }}"
                                                     data-wholesale="{{ $product->wholesale_price ?? 0 }}"
                                                     data-promo="{{ $product->promo_price ?? 0 }}">
@@ -311,9 +311,22 @@
 
     $(document).on('click', '.sx-open-adjust', function (e) {
         e.preventDefault();
-        $('#sx-adjust-form').attr('action', $(this).data('url'));
+        var btn = $(this);
+        $('#sx-adjust-form').attr('action', btn.data('url'));
         $('#sx-adjust-date').val('{{ now()->format('Y-m-d') }}');
         $('#sx-adjust-status').val('');
+        var variations = btn.data('variations') || [];
+        var select = $('#sx-adjust-variant').empty();
+        if (variations.length) {
+            variations.forEach(function (variation) {
+                select.append('<option value="' + variation.id + '">' + $('<div>').text(variation.name).html() + ' (' + variation.stock + ')</option>');
+            });
+            $('#sx-adjust-variant-wrap').prop('hidden', false);
+            select.prop('disabled', false).prop('required', true);
+        } else {
+            $('#sx-adjust-variant-wrap').prop('hidden', true);
+            select.prop('disabled', true).prop('required', false);
+        }
         $('#sx-adjust-modal').modal('show');
     });
 

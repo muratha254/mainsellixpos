@@ -122,6 +122,9 @@
                             <td data-order="{{ $product->id }}">{{ $product->item_code }}</td>
                             <td>
                                 <a href="{{ route('products.show', $product) }}" class="sx-item-name-link">{{ $product->name }}</a>
+                                @if($product->has_variants)
+                                    <span class="label label-info">Variations</span>
+                                @endif
                             </td>
                             <td>{{ optional($product->brand)->name }}</td>
                             <td>{{ optional($product->category)->name }}</td>

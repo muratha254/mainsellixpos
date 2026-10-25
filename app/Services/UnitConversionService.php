@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Product;
 use App\Models\ProductUnit;
+use App\Models\ProductVariant;
 use App\Models\SaleItem;
 use App\Models\Unit;
 use Illuminate\Support\Facades\Validator;
@@ -350,6 +351,24 @@ class UnitConversionService
 
         if ($unit) {
             return ['product_id' => (int) $unit->product_id, 'product_unit_id' => (int) $unit->id, 'sell_as' => 'extra:' . $unit->id];
+        }
+
+        $variant = ProductVariant::query()
+            ->withoutGlobalScope('company')
+            ->where('company_id', $companyId)
+            ->where('is_active', true)
+            ->where(function ($query) use ($barcode) {
+                $query->where('barcode', $barcode)->orWhere('sku', $barcode);
+            })
+            ->first();
+
+        if ($variant) {
+            return [
+                'product_id' => (int) $variant->product_id,
+                'product_variant_id' => (int) $variant->id,
+                'product_unit_id' => null,
+                'sell_as' => 'base',
+            ];
         }
 
         $product = Product::query()

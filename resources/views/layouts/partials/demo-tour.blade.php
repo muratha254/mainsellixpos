@@ -31,10 +31,9 @@
         <h2 id="sx-tour-title"></h2>
         <p id="sx-tour-body"></p>
         <div class="sx-tour-links" id="sx-tour-links"></div>
-        <p id="sx-tour-missing" hidden>The control for this step is not on this screen. Open the page for this step, or skip it.</p>
+        <p id="sx-tour-missing" hidden>The button for this step is not on this screen. Choose Skip step to continue.</p>
         <p class="sx-tour-error" id="sx-tour-error"></p>
         <div class="sx-tour-actions" id="sx-tour-standard">
-            <a href="#" id="sx-tour-open" class="btn">Open this page</a>
             <button type="button" class="is-quiet" data-demo-action="back">Back</button>
             <button type="button" class="is-quiet" data-demo-action="skip">Skip step</button>
             <button type="button" data-demo-action="next">Next</button>
@@ -57,5 +56,5 @@
         };
         document.body.classList.add('sx-has-demo');
     </script>
-    <script src="{{ asset('js/sellix-tour.js') }}?v=2"></script>
+    <script src="{{ asset('js/sellix-tour.js') }}?v=3"></script>
 @endif

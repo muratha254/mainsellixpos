@@ -206,7 +206,6 @@
             setText('sx-tour-body', "Congratulations! You've completed the guided tour. You've learned how to set up products, manage stock, record purchases, process sales and review your business reports. You can continue exploring the demo or restart the tour.");
             document.getElementById('sx-tour-links').innerHTML = '';
             document.getElementById('sx-tour-missing').hidden = true;
-            document.getElementById('sx-tour-open').hidden = true;
             document.getElementById('sx-tour-standard').hidden = true;
             document.getElementById('sx-tour-done').hidden = false;
             var contact = document.getElementById('sx-tour-contact');
@@ -235,11 +234,7 @@
             links.appendChild(anchor);
         });
         var found = placeHighlight(selectorFor(step), true);
-        var here = onStepPage(step);
-        document.getElementById('sx-tour-missing').hidden = found;
-        var open = document.getElementById('sx-tour-open');
-        open.hidden = here;
-        open.href = step.url;
+        document.getElementById('sx-tour-missing').hidden = found || !onStepPage(step);
         setText('sx-tour-error', '');
     }
 
@@ -250,21 +245,23 @@
         }
         event.preventDefault();
         var action = trigger.getAttribute('data-demo-action');
+        var current = cfg.state && cfg.state.step;
+        if (action === 'next' && current && current.url && !onStepPage(current)) {
+            window.location.href = current.url;
+            return;
+        }
         var body = { action: action, route: cfg.page || null };
         if (trigger.getAttribute('data-mode')) {
             body.mode = trigger.getAttribute('data-mode');
         }
         post(body).then(function (data) {
-            render(data);
-            var moves = action === 'next' || action === 'back' || action === 'choose' || action === 'resume' || action === 'restart';
-            if (moves && data.mode === 'guided' && !data.paused && !data.finished && data.step && !onStepPage(data.step)) {
+            var moves = action === 'next' || action === 'skip' || action === 'back' || action === 'choose' || action === 'resume' || action === 'restart';
+            if (moves && data.mode === 'guided' && !data.paused && !data.finished && data.step && data.step.url && !onStepPage(data.step)) {
                 window.location.href = data.step.url;
-            }
-        }).catch(function (error) {
-            if (action === 'next' && cfg.state && cfg.state.step && cfg.state.step.url && !onStepPage(cfg.state.step)) {
-                window.location.href = cfg.state.step.url;
                 return;
             }
+            render(data);
+        }).catch(function (error) {
             setText('sx-tour-error', error.message);
         });
     });

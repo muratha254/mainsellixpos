@@ -7,12 +7,13 @@ use App\Models\Company;
 use App\Models\Subscription;
 use App\Models\SubscriptionHistory;
 use App\Models\User;
+use App\Services\OwnerBusinessSnapshot;
 use App\Support\SubscriptionCatalog;
 use Illuminate\Http\Request;
 
 class OwnerDashboardController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, OwnerBusinessSnapshot $snapshot)
     {
         $companies = Company::query()->with('subscription.plan');
         $subscriptions = Subscription::query()->with(['plan', 'company']);
@@ -78,6 +79,7 @@ class OwnerDashboardController extends Controller
             'expiring' => $expiring,
             'expired' => $expired,
             'activity' => $activity,
+            'signins' => $snapshot->recentSignIns(8),
         ]));
     }
 

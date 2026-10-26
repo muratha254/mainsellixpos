@@ -9,8 +9,10 @@ use App\Models\SubscriptionInvoice;
 use App\Models\SubscriptionPayment;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
+use App\Models\AuditLog;
 use App\Services\AuditLogger;
 use App\Services\CompanyProvisioner;
+use App\Services\OwnerBusinessSnapshot;
 use App\Services\SubscriptionLimitGuard;
 use App\Services\SubscriptionService;
 use App\Support\SubscriptionCatalog;
@@ -28,7 +30,7 @@ class OwnerBusinessController extends Controller
     ) {
     }
 
-    public function index(Request $request)
+    public function index(Request $request, OwnerBusinessSnapshot $snapshot)
     {
         $status = (string) $request->query('status', '');
         $planId = $request->query('plan_id');
@@ -63,6 +65,7 @@ class OwnerBusinessController extends Controller
         $page = max(1, (int) $request->query('page', 1));
         $perPage = 25;
         $slice = $companies->forPage($page, $perPage)->values();
+        $snapshot->attach($slice);
         $paginator = new \Illuminate\Pagination\LengthAwarePaginator(
             $slice,
             $companies->count(),
@@ -147,9 +150,21 @@ class OwnerBusinessController extends Controller
             ->with('success', 'Business registered and subscription created.');
     }
 
-    public function show(Company $company)
+    public function show(Company $company, OwnerBusinessSnapshot $snapshot)
     {
-        $company->load(['subscription.plan', 'users.role', 'branches']);
+        $company->load(['subscription.plan', 'users.role', 'users.branch', 'branches']);
+        $snapshot->attach(collect([$company]));
+        $company->setRelation('users', $company->users->sortByDesc(function (User $user) {
+            return optional($user->last_login_at)->getTimestamp() ?? 0;
+        })->values());
+        $activities = AuditLog::query()
+            ->withoutGlobalScopes()
+            ->with(['user', 'branch'])
+            ->where('company_id', $company->id)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->limit(80)
+            ->get();
         $history = SubscriptionHistory::query()
             ->where('company_id', $company->id)
             ->with(['actor', 'previousPlan', 'newPlan'])
@@ -179,6 +194,7 @@ class OwnerBusinessController extends Controller
             'plans' => SubscriptionPlan::query()->where('is_active', true)->orderBy('name')->get(),
             'usage' => $this->limits->usage($company),
             'paymentMethods' => config('sellix.payment_methods', []),
+            'activities' => $activities,
         ]));
     }
 

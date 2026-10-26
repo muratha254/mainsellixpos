@@ -39,6 +39,7 @@
     <div><span>Users</span> <strong>{{ $usage['users'] }} (unlimited)</strong></div>
     <div><span>Shops</span> <strong>{{ $usage['branches'] }} / {{ $usage['max_branches'] ?: 'Unlimited' }}</strong></div>
     <div><span>Created</span> <strong>{{ $company->created_at->format('d M Y') }}</strong></div>
+    <div><span>Last login</span> <strong>@if($company->latestLoginUser){{ $company->latestLoginUser->last_login_at->format('d M Y H:i') }} ({{ $company->latestLoginUser->name }})@else Never @endif</strong></div>
 </div>
 
 <div class="progress" style="height:10px;margin:12px 0 20px;">
@@ -262,17 +263,64 @@
 <div class="sx-box">
     <div class="sx-box-body">
         <h4>Users</h4>
-        <ul>
-            @foreach($company->users as $user)
-                <li>{{ $user->name }} ({{ $user->email }}) — {{ optional($user->role)->display_name }} {{ $user->is_active ? '' : '[inactive]' }}</li>
-            @endforeach
-        </ul>
-        <h4>Shops / branches</h4>
-        <ul>
-            @foreach($company->branches as $branch)
-                <li>{{ $branch->name }} ({{ $branch->code }})</li>
-            @endforeach
-        </ul>
+        <div class="table-responsive">
+            <table class="table table-bordered sx-gold-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Username</th>
+                        <th>Role</th>
+                        <th>Branch</th>
+                        <th>Last login</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($company->users as $user)
+                        <tr>
+                            <td>{{ $user->name }}<br><span class="text-muted">{{ $user->email }}</span></td>
+                            <td>{{ $user->username ?: '-' }}</td>
+                            <td>{{ optional($user->role)->display_name ?: '-' }}</td>
+                            <td>{{ optional($user->branch)->name ?: '-' }}</td>
+                            <td>{{ optional($user->last_login_at)->format('d M Y H:i') ?: 'Never' }}</td>
+                            <td>{{ $user->is_active ? 'Active' : 'Inactive' }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="6">No users.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+        <h4>Branches</h4>
+        <div class="table-responsive">
+            <table class="table table-bordered sx-gold-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Code</th>
+                        <th>Phone</th>
+                        <th>City</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($company->branches->sortByDesc('is_active') as $branch)
+                        <tr>
+                            <td>{{ $branch->name }}</td>
+                            <td>{{ $branch->code ?: '-' }}</td>
+                            <td>{{ $branch->phone ?: '-' }}</td>
+                            <td>{{ $branch->city ?: '-' }}</td>
+                            <td>{{ $branch->is_active ? 'Active' : 'Inactive' }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="5">No branches.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+        <h4>Recent activity</h4>
+        <p><a href="{{ route('owner.activity', ['company_id' => $company->id]) }}">Open the full activity list</a></p>
+        @include('owner.partials.activity-table', ['logs' => $activities, 'showBusiness' => false])
     </div>
 </div>
 

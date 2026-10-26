@@ -64,6 +64,7 @@ use App\Http\Controllers\Auth\RegisterBusinessController;
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\SubscriptionGateController;
 use App\Http\Controllers\Owner\OwnerDashboardController;
+use App\Http\Controllers\Owner\OwnerActivityController;
 use App\Http\Controllers\Owner\OwnerBusinessController;
 use App\Http\Controllers\Owner\OwnerPlanController;
 use App\Http\Controllers\PwaController;
@@ -106,6 +107,7 @@ Route::middleware('auth')->group(function () {
 
     Route::middleware('owner')->prefix('owner')->name('owner.')->group(function () {
         Route::get('/', [OwnerDashboardController::class, 'index'])->name('dashboard');
+        Route::get('/activity', [OwnerActivityController::class, 'index'])->name('activity');
         Route::get('/plans', [OwnerPlanController::class, 'index'])->name('plans.index');
         Route::get('/plans/create', [OwnerPlanController::class, 'create'])->name('plans.create');
         Route::post('/plans', [OwnerPlanController::class, 'store'])->name('plans.store');

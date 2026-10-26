@@ -42,6 +42,39 @@
     <div class="col-md-12">
         <div class="sx-box">
             <div class="sx-box-body">
+                <h4>Latest sign-ins <a href="{{ route('owner.activity') }}" class="btn btn-xs btn-primary pull-right">All activity</a></h4>
+                <div class="table-responsive">
+                    <table class="table table-bordered sx-gold-table">
+                        <thead><tr><th>When</th><th>Business</th><th>User</th><th>Branch</th></tr></thead>
+                        <tbody>
+                            @forelse($signins as $user)
+                                <tr>
+                                    <td>{{ $user->last_login_at->format('d M Y H:i') }}</td>
+                                    <td>
+                                        @if($user->company)
+                                            <a href="{{ route('owner.businesses.show', $user->company) }}">{{ $user->company->name }}</a>
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
+                                    <td>{{ $user->name }}</td>
+                                    <td>{{ optional($user->branch)->name ?: '-' }}</td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="4">No sign-ins recorded yet.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="sx-box">
+            <div class="sx-box-body">
                 <h4>Pending subscription requests</h4>
                 <div class="table-responsive">
                     <table class="table table-bordered sx-gold-table">

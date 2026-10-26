@@ -58,6 +58,8 @@
                         <th>Days</th>
                         <th>Users</th>
                         <th>Shops</th>
+                        <th>Last login</th>
+                        <th>Active branches</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -81,6 +83,24 @@
                             <td>{{ $company->users_count }}</td>
                             <td>{{ $company->branches_count }}</td>
                             <td>
+                                @if($company->latestLoginUser)
+                                    <div>{{ $company->latestLoginUser->last_login_at->format('d M Y H:i') }}</div>
+                                    <div>{{ $company->latestLoginUser->name }}</div>
+                                @else
+                                    Never
+                                @endif
+                            </td>
+                            <td>
+                                @if($company->activeBranches->isEmpty())
+                                    None
+                                @else
+                                    {{ $company->activeBranches->pluck('name')->take(4)->implode(', ') }}
+                                    @if($company->activeBranches->count() > 4)
+                                        +{{ $company->activeBranches->count() - 4 }}
+                                    @endif
+                                @endif
+                            </td>
+                            <td>
                                 <div class="btn-group">
                                     <button type="button" class="btn btn-primary btn-xs dropdown-toggle" data-toggle="dropdown">Action <span class="caret"></span></button>
                                     <ul class="dropdown-menu dropdown-menu-right">
@@ -91,7 +111,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="12">No businesses match these filters.</td></tr>
+                        <tr><td colspan="14">No businesses match these filters.</td></tr>
                     @endforelse
                 </tbody>
             </table>

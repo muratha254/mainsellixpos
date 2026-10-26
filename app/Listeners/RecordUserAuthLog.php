@@ -21,7 +21,7 @@ class RecordUserAuthLog
                 'status' => 'Success',
                 'branch' => optional($event->user->branch)->name,
                 'system_name' => $this->systemName($request ? $request->ip() : null),
-            ], $request);
+            ], $request, $event->user);
 
             return;
         }
@@ -36,7 +36,7 @@ class RecordUserAuthLog
                 'status' => 'Logged Out',
                 'branch' => optional($event->user->branch)->name,
                 'system_name' => $this->systemName($request ? $request->ip() : null),
-            ], $request);
+            ], $request, $event->user);
 
             return;
         }
@@ -52,7 +52,7 @@ class RecordUserAuthLog
                 'status' => 'Failed!! Invalid Password!!',
                 'branch' => optional(optional($event->user)->branch)->name,
                 'system_name' => $this->systemName($request ? $request->ip() : null),
-            ], $request);
+            ], $request, $event->user);
         }
     }
 

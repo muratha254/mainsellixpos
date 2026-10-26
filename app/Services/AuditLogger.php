@@ -15,15 +15,25 @@ class AuditLogger
         ?Model $record = null,
         ?array $before = null,
         ?array $after = null,
-        ?Request $request = null
+        ?Request $request = null,
+        $actor = null
     ): AuditLog {
         $request = $request ?: request();
-        $user = $request ? $request->user() : null;
+        if ($actor) {
+            $companyId = $actor->company_id ?? null;
+            $branchId = $actor->branch_id ?? null;
+            $userId = $actor->id ?? null;
+        } else {
+            $user = $request ? $request->user() : null;
+            $companyId = ($user ? $user->company_id : null) ?? (app()->bound('currentCompanyId') ? app('currentCompanyId') : null);
+            $branchId = ($user ? $user->branch_id : null) ?? (app()->bound('currentBranchId') ? app('currentBranchId') : null);
+            $userId = $user ? $user->id : null;
+        }
 
         return AuditLog::query()->withoutGlobalScope('company')->create([
-            'company_id' => $user->company_id ?? (app()->bound('currentCompanyId') ? app('currentCompanyId') : null),
-            'branch_id' => $user->branch_id ?? (app()->bound('currentBranchId') ? app('currentBranchId') : null),
-            'user_id' => $user->id ?? null,
+            'company_id' => $companyId,
+            'branch_id' => $branchId,
+            'user_id' => $userId,
             'action' => $action,
             'module' => $module,
             'auditable_type' => $record ? get_class($record) : null,
@@ -73,5 +83,32 @@ class AuditLogger
         }
 
         return $action;
+    }
+
+    public static function humanAction(string $action, ?string $module = null): string
+    {
+        $action = str_replace([' ', '-'], '_', strtolower($action));
+        if ($module === 'auth') {
+            return ucwords(str_replace('_', ' ', $action));
+        }
+
+        return ucwords(str_replace('_', ' ', self::actionLabel($action, $module)));
+    }
+
+    public static function detailLine(AuditLog $log): string
+    {
+        $payload = is_array($log->after_json) && $log->after_json !== []
+            ? $log->after_json
+            : (is_array($log->before_json) ? $log->before_json : []);
+
+        $bits = [];
+        foreach (['name', 'username', 'sku', 'reference', 'invoice_number', 'status', 'branch'] as $key) {
+            if (! isset($payload[$key]) || ! is_scalar($payload[$key]) || $payload[$key] === '') {
+                continue;
+            }
+            $bits[] = (string) $payload[$key];
+        }
+
+        return implode(' · ', array_slice(array_values(array_unique($bits)), 0, 3));
     }
 }

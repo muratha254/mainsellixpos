@@ -14,6 +14,7 @@
         $item('owner.dashboard', 'Dashboard', 'fa-dashboard', route('owner.dashboard')),
         $item('owner.pending', 'Pending requests', 'fa-hourglass-start', route('owner.businesses.index', ['status' => 'pending_approval'])),
         $item('owner.businesses', 'Businesses', 'fa-building', route('owner.businesses.index')),
+        $item('owner.activity', 'Activity', 'fa-list-alt', route('owner.activity')),
         $item('owner.plans', 'Plans', 'fa-id-card', route('owner.plans.index')),
     ];
 @endphp

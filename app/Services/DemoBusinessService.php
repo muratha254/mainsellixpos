@@ -23,6 +23,7 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Support\SubscriptionCatalog;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -83,11 +84,76 @@ class DemoBusinessService
         return compact('company', 'branch', 'admin');
     }
 
+    /**
+     * @param  array{name: string, client_name: string, username: string, email?: ?string, phone?: ?string, password?: ?string, days: int}  $data
+     * @return array{company: Company, branch: mixed, admin: User, password: string}
+     */
+    public function createClient(array $data): array
+    {
+        $password = trim((string) ($data['password'] ?? ''));
+        if ($password === '') {
+            $password = Str::lower(Str::random(4)).'-'.random_int(1000, 9999);
+        }
+
+        $email = trim((string) ($data['email'] ?? ''));
+        if ($email === '') {
+            $base = Str::slug((string) $data['username'], '.');
+            $base = $base !== '' ? $base : 'client';
+            $email = $base.'@demo.sellix.invalid';
+            $n = 1;
+            while (User::query()->where('email', $email)->exists()) {
+                $email = $base.'.'.$n.'@demo.sellix.invalid';
+                $n++;
+            }
+        }
+
+        $result = DB::transaction(function () use ($data, $password, $email) {
+            $provisioned = $this->provisioner->provision([
+                'name' => $data['name'],
+                'owner_name' => $data['client_name'],
+                'email' => $email,
+                'phone' => $data['phone'] ?? null,
+                'address' => 'Demo account',
+                'city' => 'Nairobi',
+                'country' => 'Kenya',
+                'is_active' => true,
+            ], [
+                'name' => $data['client_name'],
+                'email' => $email,
+                'username' => $data['username'],
+                'password' => $password,
+                'phone' => $data['phone'] ?? null,
+            ]);
+
+            $company = $provisioned['company'];
+            $company->update(['is_demo' => true]);
+            $this->subscribe($company, (int) $data['days']);
+            $this->seedSamples($company, $provisioned['branch'], $provisioned['admin']);
+
+            return $provisioned;
+        });
+
+        $result['password'] = $password;
+
+        return $result;
+    }
+
+    public function refreshPassword(Company $company): array
+    {
+        abort_unless($company->is_demo, 403);
+
+        $admin = User::query()->where('company_id', $company->id)->orderBy('id')->firstOrFail();
+        $password = Str::lower(Str::random(4)).'-'.random_int(1000, 9999);
+        $admin->forceFill(['password' => Hash::make($password)])->save();
+
+        return ['admin' => $admin, 'password' => $password];
+    }
+
     public function reset(Company $company): void
     {
-        abort_unless($company->is_demo && $company->slug === self::SLUG, 403);
+        abort_unless($company->is_demo, 403);
 
-        $admin = User::query()->where('company_id', $company->id)->where('email', 'demo@sellix.invalid')->firstOrFail();
+        $admin = User::query()->where('company_id', $company->id)->orderBy('id')->firstOrFail();
         $branch = $company->branches()->where('is_active', true)->orderByDesc('is_default')->firstOrFail();
 
         DB::transaction(function () use ($company, $admin, $branch) {
@@ -97,7 +163,7 @@ class DemoBusinessService
         });
     }
 
-    protected function subscribe(Company $company): void
+    protected function subscribe(Company $company, ?int $days = null): void
     {
         $plan = SubscriptionPlan::query()->firstOrCreate(
             ['slug' => 'enterprise'],
@@ -120,7 +186,7 @@ class DemoBusinessService
                 'subscription_plan_id' => $plan->id,
                 'status' => SubscriptionCatalog::STATUS_ACTIVE,
                 'starts_at' => now()->toDateString(),
-                'expires_at' => now()->addYears(10)->toDateString(),
+                'expires_at' => $days ? now()->addDays($days)->toDateString() : now()->addYears(10)->toDateString(),
             ]
         );
     }

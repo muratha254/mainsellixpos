@@ -126,6 +126,8 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/businesses', [OwnerBusinessController::class, 'index'])->name('businesses.index');
         Route::get('/businesses/create', [OwnerBusinessController::class, 'create'])->name('businesses.create');
+        Route::get('/businesses/demo/create', [OwnerBusinessController::class, 'createDemo'])->name('businesses.demo.create');
+        Route::post('/businesses/demo', [OwnerBusinessController::class, 'storeDemo'])->name('businesses.demo.store');
         Route::post('/businesses', [OwnerBusinessController::class, 'store'])->name('businesses.store');
         Route::get('/businesses/{company}', [OwnerBusinessController::class, 'show'])->name('businesses.show');
         Route::get('/businesses/{company}/edit', [OwnerBusinessController::class, 'edit'])->name('businesses.edit');
@@ -141,6 +143,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/businesses/{company}/reject', [OwnerBusinessController::class, 'reject'])->name('businesses.reject');
         Route::post('/businesses/{company}/cancel', [OwnerBusinessController::class, 'cancel'])->name('businesses.cancel');
         Route::post('/businesses/{company}/reset', [OwnerBusinessController::class, 'reset'])->name('businesses.reset');
+        Route::post('/businesses/{company}/demo-password', [OwnerBusinessController::class, 'refreshDemoPassword'])->name('businesses.demo-password');
         Route::post('/businesses/{company}/payments', [OwnerBusinessController::class, 'payment'])->name('businesses.payment');
         Route::post('/businesses/{company}/invoices', [OwnerBusinessController::class, 'invoice'])->name('businesses.invoice');
     });

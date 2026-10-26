@@ -40,6 +40,7 @@
             </div>
             <button type="submit" class="btn sx-btn-aqua"><i class="fa fa-search"></i> Filter</button>
         </form>
+        <a href="{{ route('owner.businesses.demo.create') }}" class="btn sx-btn-aqua"><i class="fa fa-play"></i> New demo</a>
         <a href="{{ route('owner.businesses.create') }}" class="btn sx-btn-aqua"><i class="fa fa-plus"></i> New business</a>
     </div>
     <div class="sx-box-body">
@@ -72,7 +73,7 @@
                         @endphp
                         <tr>
                             <td>{{ $company->id }}</td>
-                            <td>{{ $company->name }}</td>
+                            <td>{{ $company->name }}@if($company->is_demo) <span class="sx-sub-badge">Demo</span>@endif</td>
                             <td>{{ $company->owner_name ?: '-' }}</td>
                             <td>{{ $company->email }}</td>
                             <td>{{ optional(optional($sub)->plan)->name ?: '-' }}</td>

@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Models\AuditLog;
 use App\Services\AuditLogger;
 use App\Services\CompanyProvisioner;
+use App\Services\DemoBusinessService;
 use App\Services\OwnerBusinessSnapshot;
 use App\Services\SubscriptionLimitGuard;
 use App\Services\SubscriptionService;
@@ -148,6 +149,53 @@ class OwnerBusinessController extends Controller
 
         return redirect()->route('owner.businesses.show', $result['company'])
             ->with('success', 'Business registered and subscription created.');
+    }
+
+    public function createDemo()
+    {
+        return view('owner.businesses.demo-form', $this->ownerView([
+            'activeMenu' => 'owner.businesses',
+        ]));
+    }
+
+    public function storeDemo(Request $request, DemoBusinessService $demo)
+    {
+        $data = $request->validate([
+            'name' => 'required|string|max:255',
+            'client_name' => 'required|string|max:255',
+            'username' => ['required', 'string', 'max:100', 'regex:/^[A-Za-z0-9._-]+$/', 'unique:users,username'],
+            'email' => 'nullable|email|max:190|unique:users,email',
+            'phone' => 'nullable|string|max:64',
+            'password' => 'nullable|string|min:4|max:100|confirmed',
+            'days' => 'required|integer|min:1|max:365',
+        ]);
+
+        $result = $demo->createClient($data);
+
+        return redirect()->route('owner.businesses.show', $result['company'])
+            ->with('success', 'Demo business created. Copy the login details below and send them to the client. The password is shown only this once.')
+            ->with('demo_credentials', $this->demoCredentials($result['company'], $result['admin'], $result['password']));
+    }
+
+    public function refreshDemoPassword(Company $company, DemoBusinessService $demo)
+    {
+        abort_unless($company->is_demo, 403);
+        $issued = $demo->refreshPassword($company);
+
+        return redirect()->route('owner.businesses.show', $company)
+            ->with('success', 'A new demo password is ready. Copy it now and send it to the client. It will not be shown again.')
+            ->with('demo_credentials', $this->demoCredentials($company, $issued['admin'], $issued['password']));
+    }
+
+    protected function demoCredentials(Company $company, User $admin, string $password): array
+    {
+        return [
+            'company_id' => $company->id,
+            'business' => $company->name,
+            'username' => $admin->username,
+            'password' => $password,
+            'login_url' => route('login'),
+        ];
     }
 
     public function show(Company $company, OwnerBusinessSnapshot $snapshot)

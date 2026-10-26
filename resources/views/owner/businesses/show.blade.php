@@ -42,6 +42,39 @@
     <div><span>Last login</span> <strong>@if($company->latestLoginUser){{ $company->latestLoginUser->last_login_at->format('d M Y H:i') }} ({{ $company->latestLoginUser->name }})@else Never @endif</strong></div>
 </div>
 
+@if($company->is_demo)
+@php
+    $demoAdmin = $company->users->sortBy('id')->first();
+    $demoLogin = session('demo_credentials');
+    $demoLogin = is_array($demoLogin) && (int) ($demoLogin['company_id'] ?? 0) === (int) $company->id ? $demoLogin : null;
+@endphp
+<div class="sx-box" style="border-left:4px solid #1f7a4d;">
+    <div class="sx-box-body">
+        <h4>Demo for a client</h4>
+        <p>Send the client the sign-in page and username below. After they sign in, they choose <strong>Start Guided Tour</strong> or <strong>Explore on My Own</strong>. This demo cannot open other businesses.</p>
+        <p><strong>Sign in:</strong> {{ route('login') }}<br>
+        <strong>Username:</strong> {{ $demoAdmin->username ?? '-' }}</p>
+        @if($demoLogin)
+            <label for="sx-demo-login-note">Login details to send</label>
+            <textarea id="sx-demo-login-note" class="form-control" rows="7" readonly>Business: {{ $demoLogin['business'] }}
+Sign in: {{ $demoLogin['login_url'] }}
+Username: {{ $demoLogin['username'] }}
+Password: {{ $demoLogin['password'] }}
+
+Sign in, then choose Start Guided Tour or Explore on My Own.</textarea>
+            <p class="help-block">This password is shown only now. Copy it before you leave this page.</p>
+            <button type="button" class="btn sx-btn-aqua" id="sx-demo-copy">Copy login details</button>
+        @else
+            <p class="help-block">The password is hidden after it is created. Issue a new one when you need to send access again.</p>
+        @endif
+        <form method="post" action="{{ route('owner.businesses.demo-password', $company) }}" style="margin-top:12px;" onsubmit="return confirm('Create a new password for this demo? The previous password will stop working.');">
+            @csrf
+            <button type="submit" class="btn btn-default">New password for the client</button>
+        </form>
+    </div>
+</div>
+@endif
+
 <div class="progress" style="height:10px;margin:12px 0 20px;">
     <div class="progress-bar" style="width: {{ $progress }}%; background:#c9a027;"></div>
 </div>
@@ -421,6 +454,15 @@
 
 @push('scripts')
 <script>
+document.getElementById('sx-demo-copy') && document.getElementById('sx-demo-copy').addEventListener('click', function () {
+    var note = document.getElementById('sx-demo-login-note');
+    if (!note) return;
+    note.focus();
+    note.select();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(note.value);
+    }
+});
 $(document).on('submit', 'form.sx-owner-confirm', function (e) {
     var form = this;
     if (form.getAttribute('data-ok') === '1') return true;

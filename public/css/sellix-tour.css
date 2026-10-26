@@ -1,0 +1,95 @@
+.sx-demo-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 4600;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    padding: 8px 14px;
+    background: #1f6f4a;
+    color: #fff;
+    font-size: 13px;
+}
+.sx-demo-banner form { margin: 0; }
+.sx-demo-banner button,
+.sx-tour-launcher {
+    border: 0;
+    border-radius: 4px;
+    background: #fff;
+    color: #1f6f4a;
+    font-weight: 700;
+    padding: 6px 10px;
+}
+body.sx-has-demo { padding-top: 42px; }
+.sx-tour-launcher {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 4600;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+.sx-tour-modal,
+.sx-tour-panel {
+    position: fixed;
+    z-index: 4700;
+    background: #fff;
+    color: #1f2933;
+    border-radius: 8px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.28);
+}
+.sx-tour-modal {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(560px, calc(100vw - 24px));
+    padding: 24px;
+}
+.sx-tour-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    z-index: 4690;
+}
+.sx-tour-panel {
+    right: 16px;
+    bottom: 16px;
+    width: min(380px, calc(100vw - 24px));
+    max-height: calc(100vh - 80px);
+    overflow: auto;
+    padding: 16px;
+}
+.sx-tour-panel h2,
+.sx-tour-modal h2 { margin: 0 0 8px; font-size: 20px; }
+.sx-tour-progress { color: #6b7280; font-size: 12px; margin-bottom: 8px; }
+.sx-tour-actions, .sx-tour-choice { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.sx-tour-actions button,
+.sx-tour-choice button,
+.sx-tour-links a {
+    border: 0;
+    border-radius: 4px;
+    padding: 8px 12px;
+    background: #1f6f4a;
+    color: #fff;
+    font-weight: 700;
+}
+.sx-tour-actions button.is-quiet,
+.sx-tour-choice button.is-quiet { background: #e5e7eb; color: #1f2933; }
+.sx-tour-error { color: #9b1c1c; margin-top: 8px; }
+.sx-tour-target { outline: 3px solid #c9a027; outline-offset: 4px; }
+.sx-tour-links { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.sx-tour-links a { text-decoration: none; text-align: center; }
+@media (max-width: 768px) {
+    .sx-tour-panel {
+        left: 8px;
+        right: 8px;
+        bottom: 8px;
+        width: auto;
+        max-height: 55vh;
+    }
+    .sx-tour-launcher { left: 8px; right: 8px; bottom: 8px; }
+    .sx-demo-banner { font-size: 12px; }
+}

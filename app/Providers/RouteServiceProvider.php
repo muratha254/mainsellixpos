@@ -64,6 +64,10 @@ class RouteServiceProvider extends ServiceProvider
             return Limit::none();
         });
 
+        RateLimiter::for('demo', function (Request $request) {
+            return Limit::perMinute(20)->by($request->ip());
+        });
+
         RateLimiter::for('two-factor', function (Request $request) {
             return Limit::none();
         });

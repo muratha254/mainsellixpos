@@ -74,7 +74,7 @@
                     </div>
                     <div class="form-group">
                         <label>Amount <span class="sx-req">*</span></label>
-                        <input type="number" step="0.01" min="0.01" name="amount" class="form-control" placeholder="Amount" value="{{ old('amount', $expense->amount) }}" required>
+                        <input type="number" step="0.01" min="0.01" name="amount" class="form-control" data-tour="expense-amount" placeholder="Amount" value="{{ old('amount', $expense->amount) }}" required>
                     </div>
                     <div class="form-group">
                         <label>Voucher No</label>

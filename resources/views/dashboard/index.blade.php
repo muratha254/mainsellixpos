@@ -9,7 +9,7 @@
     };
 @endphp
 
-<div class="sx-content-header">
+<div class="sx-content-header" data-tour="dashboard">
     <div class="sx-content-title">
         <a href="{{ route('dashboard') }}" class="sx-back-btn" aria-label="Back"><i class="fa fa-chevron-left"></i></a>
         <div>

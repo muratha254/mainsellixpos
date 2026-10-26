@@ -58,7 +58,7 @@
                         </div>
                         <div class="form-group">
                             <label>Company Name <span class="sx-req">*</span></label>
-                            <input type="text" name="name" class="form-control" value="{{ old('name', $company->name) }}" required>
+                            <input type="text" name="name" class="form-control" data-tour="business-name" value="{{ old('name', $company->name) }}" required>
                         </div>
                         <div class="form-group">
                             <label>Phone <span class="sx-req">*</span></label>
@@ -277,7 +277,7 @@
                     <div class="col-md-6">
                         <div class="form-group">
                             <label>Business name <span class="sx-req">*</span></label>
-                            <input type="text" name="name" class="form-control" value="{{ old('name', $company->name) }}" required>
+                            <input type="text" name="name" class="form-control" data-tour="business-name" value="{{ old('name', $company->name) }}" required>
                         </div>
                         <div class="form-group">
                             <label>Location <span class="sx-req">*</span></label>

@@ -199,6 +199,7 @@
         })();
     </script>
     @stack('scripts')
+    @include('layouts.partials.demo-tour')
     @include('layouts.partials.pwa-scripts')
 </body>
 </html>

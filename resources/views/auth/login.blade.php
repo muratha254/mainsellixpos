@@ -81,6 +81,10 @@
                     <i class="fa fa-sign-in"></i>
                 </button>
             </form>
+            <form action="{{ route('demo.enter') }}" method="post" style="margin-top:12px;">
+                @csrf
+                <button type="submit" class="login-submit">Try live demo</button>
+            </form>
             <button type="button" class="login-pwa-install" data-pwa-install hidden>Install App</button>
         </div>
 

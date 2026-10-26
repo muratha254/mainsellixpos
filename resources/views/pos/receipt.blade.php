@@ -285,9 +285,10 @@
     @endif
 
     <div class="no-print">
-        <button type="button" onclick="window.print()">{{ $quote ? 'Print prices' : 'Print Receipt' }}</button>
+        <button type="button" data-tour="receipt" onclick="window.print()">{{ $quote ? 'Print prices' : 'Print Receipt' }}</button>
     </div>
 </div>
+@if(! optional($sale->company)->is_demo)
 <script>
     window.addEventListener('load', function () {
         var logo = document.querySelector('.logo');
@@ -302,5 +303,7 @@
         logo.addEventListener('error', printSlip);
     });
 </script>
+@endif
+@include('layouts.partials.demo-tour')
 </body>
 </html>

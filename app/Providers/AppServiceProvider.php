@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Support\RuntimeSettings;
+use Illuminate\Mail\Events\MessageSending;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
@@ -36,6 +38,13 @@ class AppServiceProvider extends ServiceProvider
         if (! function_exists('can_view_item_buying_price')) {
             require_once __DIR__ . '/../Support/buying_price_fallback.php';
         }
+
+        Event::listen(MessageSending::class, function () {
+            $user = auth()->user();
+            if ($user && $user->company && $user->company->is_demo) {
+                return false;
+            }
+        });
 
         $appUrl = config('app.url');
         if ($appUrl && ! app()->environment('local')) {

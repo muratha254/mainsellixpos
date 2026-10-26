@@ -38,6 +38,7 @@ class Kernel extends HttpKernel
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
             \App\Http\Middleware\SetCurrentCompany::class,
             \App\Http\Middleware\EnsureSubscription::class,
+            \App\Http\Middleware\RestrictDemoUser::class,
         ],
 
         'api' => [

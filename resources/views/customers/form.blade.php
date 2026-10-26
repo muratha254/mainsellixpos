@@ -38,7 +38,7 @@
                 <div class="col-md-3">
                     <div class="form-group">
                         <label>Customer Name <span class="sx-req">*</span></label>
-                        <input type="text" name="name" class="form-control" placeholder="Customer Name" value="{{ old('name', $customer->name) }}" required>
+                        <input type="text" name="name" class="form-control" data-tour="customer-name" placeholder="Customer Name" value="{{ old('name', $customer->name) }}" required>
                     </div>
                 </div>
                 <div class="col-md-3">

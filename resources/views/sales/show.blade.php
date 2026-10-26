@@ -219,7 +219,7 @@
         </div>
     @endif
 
-    <h4 class="sx-invoice-section">Payment Information:</h4>
+    <h4 class="sx-invoice-section" data-tour="sale-payments">Payment Information:</h4>
     <div class="table-responsive">
         <table class="table table-bordered sx-purple-table">
             <thead>
@@ -292,6 +292,7 @@
             <a href="{{ route('sales.pos-pdf', $sale) }}" class="btn btn-info">
                 <i class="fa fa-print"></i> POS Invoice
             </a>
+            <a href="{{ route('pos.receipt', $sale) }}" class="btn btn-info" data-tour="receipt">View receipt</a>
         @endif
         @if($sale->status === \App\Models\Sale::STATUS_COMPLETED && !empty($canPlan))
             <button type="button" class="btn btn-success" data-toggle="modal" data-target="#sx-pay-plan-modal">

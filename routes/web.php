@@ -67,6 +67,8 @@ use App\Http\Controllers\Owner\OwnerDashboardController;
 use App\Http\Controllers\Owner\OwnerActivityController;
 use App\Http\Controllers\Owner\OwnerBusinessController;
 use App\Http\Controllers\Owner\OwnerPlanController;
+use App\Http\Controllers\DemoAccessController;
+use App\Http\Controllers\DemoTourController;
 use App\Http\Controllers\PwaController;
 use Illuminate\Support\Facades\Route;
 
@@ -88,6 +90,10 @@ Route::get('/login', function () {
     return view('auth.login');
 })->middleware('guest')->name('login');
 
+Route::post('/demo/enter', [DemoAccessController::class, 'enter'])
+    ->middleware('throttle:demo')
+    ->name('demo.enter');
+
 Route::middleware('guest')->group(function () {
     Route::get('/register', [RegisterBusinessController::class, 'businessForm'])->name('register');
     Route::post('/register', [RegisterBusinessController::class, 'saveBusiness'])->name('register.business');
@@ -101,6 +107,9 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::middleware('auth')->group(function () {
+    Route::post('/demo/tour', [DemoTourController::class, 'act'])->name('demo.tour');
+    Route::post('/demo/reset', [DemoAccessController::class, 'reset'])->name('demo.reset');
+
     Route::get('/subscription/blocked', [SubscriptionGateController::class, 'blocked'])->name('subscription.blocked');
     Route::get('/billing', [BillingController::class, 'index'])->name('billing.index');
     Route::get('/billing/invoices/{invoice}', [BillingController::class, 'show'])->name('billing.invoices.show');

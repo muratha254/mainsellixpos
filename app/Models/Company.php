@@ -33,10 +33,12 @@ class Company extends Model
         'date_format',
         'timezone',
         'is_active',
+        'is_demo',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'is_demo' => 'boolean',
     ];
 
     public function branches()

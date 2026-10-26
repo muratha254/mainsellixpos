@@ -60,6 +60,7 @@
     <script src="{{ asset('AdminLTE-2/bower_components/select2/dist/js/select2.full.js') }}"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     @stack('scripts')
+    @include('layouts.partials.demo-tour')
     @include('layouts.partials.pwa-scripts')
 </body>
 </html>

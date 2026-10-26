@@ -12,7 +12,7 @@
     ],
 ])
 
-<div class="sx-acc-card">
+<div class="sx-acc-card" data-tour="sales-report">
     <div class="sx-acc-card-head"><i class="fa fa-filter"></i> Please Enter Valid Information</div>
     <div class="sx-acc-card-body">
         <form method="get" action="{{ route('reports.sales.sales') }}" class="sx-acc-filter">

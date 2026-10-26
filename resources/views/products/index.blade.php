@@ -58,7 +58,7 @@
             </ul>
         </div>
         @if($canCreate)
-            <a href="{{ route('products.create') }}" class="btn sx-btn-aqua"><i class="fa fa-plus"></i> New Item</a>
+            <a href="{{ route('products.create') }}" class="btn sx-btn-aqua" data-tour="new-item"><i class="fa fa-plus"></i> New Item</a>
         @endif
     </div>
 

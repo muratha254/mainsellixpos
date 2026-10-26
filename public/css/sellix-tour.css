@@ -55,12 +55,21 @@ body.sx-has-demo { padding-top: 42px; }
     z-index: 4690;
 }
 .sx-tour-panel {
+    top: 54px;
     right: 16px;
-    bottom: 16px;
-    width: min(380px, calc(100vw - 24px));
-    max-height: calc(100vh - 80px);
+    width: min(360px, calc(100vw - 24px));
+    max-height: min(240px, calc(100vh - 80px));
     overflow: auto;
     padding: 16px;
+}
+body.sx-tour-modal-open .sx-tour-panel {
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: 130px;
+}
+body.sx-tour-modal-open .modal-dialog {
+    margin-top: 190px;
 }
 .sx-tour-panel h2,
 .sx-tour-modal h2 { margin: 0 0 8px; font-size: 20px; }
@@ -84,11 +93,12 @@ body.sx-has-demo { padding-top: 42px; }
 .sx-tour-links a { text-decoration: none; text-align: center; }
 @media (max-width: 768px) {
     .sx-tour-panel {
+        top: 52px;
         left: 8px;
         right: 8px;
-        bottom: 8px;
+        bottom: auto;
         width: auto;
-        max-height: 55vh;
+        max-height: 38vh;
     }
     .sx-tour-launcher { left: 8px; right: 8px; bottom: 8px; }
     .sx-demo-banner { font-size: 12px; }

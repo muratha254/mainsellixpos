@@ -33,7 +33,7 @@
             </select>
         </form>
         @if($canCreate)
-            <a href="{{ route('expenses.create', ['type' => 'bill']) }}" class="btn sx-btn-aqua"><i class="fa fa-plus"></i> Add Bill/Expense</a>
+            <a href="{{ route('expenses.create', ['type' => 'bill']) }}" class="btn sx-btn-aqua" data-tour="new-expense"><i class="fa fa-plus"></i> Add Bill/Expense</a>
         @endif
     </div>
 

@@ -5,7 +5,7 @@
     @php
         $demoState = app(\App\Services\DemoTourService::class)->payload(auth()->user());
     @endphp
-    <link rel="stylesheet" href="{{ asset('css/sellix-tour.css') }}?v=1">
+    <link rel="stylesheet" href="{{ asset('css/sellix-tour.css') }}?v=2">
     <div class="sx-demo-banner">
         <span>Demo business. This shop uses sample data, and the sales you record here stay inside the demo.</span>
         <form method="post" action="{{ route('demo.reset') }}" onsubmit="return confirm('Restore the demo sample data? Records added in this demo will be removed.');">
@@ -57,5 +57,5 @@
         };
         document.body.classList.add('sx-has-demo');
     </script>
-    <script src="{{ asset('js/sellix-tour.js') }}?v=1"></script>
+    <script src="{{ asset('js/sellix-tour.js') }}?v=2"></script>
 @endif

@@ -31,7 +31,7 @@
             <a href="{{ route('customers.download') }}" class="btn sx-btn-aqua"><i class="fa fa-download"></i> Download List</a>
         </div>
         @if($canCreate)
-            <a href="{{ route('customers.create') }}" class="btn sx-btn-aqua"><i class="fa fa-plus"></i> New Customer</a>
+            <a href="{{ route('customers.create') }}" class="btn sx-btn-aqua" data-tour="new-customer"><i class="fa fa-plus"></i> New Customer</a>
         @endif
     </div>
 

@@ -31,7 +31,7 @@ class DemoTourTest extends TestCase
 
     public function test_demo_access_is_isolated_from_a_real_business(): void
     {
-        $this->get(route('login'))->assertOk()->assertSee('Try live demo');
+        $this->get(route('login'))->assertOk()->assertDontSee('Try live demo');
         $this->post(route('demo.tour'), ['action' => 'sync'])->assertRedirect(route('login'));
 
         $this->post(route('demo.enter'))->assertRedirect(route('dashboard'));

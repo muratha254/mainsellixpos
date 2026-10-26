@@ -22,7 +22,7 @@
         <h3 class="sx-box-title" style="flex:none;margin:0;">Purchase List</h3>
         <div class="sx-toolbar-actions">
             @if($canCreate)
-                <a href="{{ route('purchases.create') }}" class="btn sx-btn-aqua"><i class="fa fa-plus"></i> New Purchase</a>
+                <a href="{{ route('purchases.create') }}" class="btn sx-btn-aqua" data-tour="new-purchase"><i class="fa fa-plus"></i> New Purchase</a>
             @endif
         </div>
     </div>

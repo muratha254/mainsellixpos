@@ -122,7 +122,7 @@
                             <td data-order="{{ optional($sale->sale_date)->format('Y-m-d H:i:s') }}">
                                 {{ optional($sale->sale_date)->format('d-m-Y H:i:s') }}
                             </td>
-                            <td>{{ $sale->documentNumber() }}</td>
+                            <td>@if($loop->first && optional(auth()->user()->company)->is_demo)<a href="{{ route('sales.show', $sale) }}" data-tour="open-sale">{{ $sale->documentNumber() }}</a>@else{{ $sale->documentNumber() }}@endif</td>
                             <td>
                                 @if($isFinal)
                                     <span class="sx-status-final">Final <i class="fa fa-check"></i></span>

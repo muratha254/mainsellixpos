@@ -64,7 +64,7 @@
                 </div>
             </div>
             <div class="sx-form-actions">
-                <button type="submit" class="btn btn-success">Show</button>
+                <button type="submit" class="btn btn-success" data-tour="sales-report-show">Show</button>
                 <a href="{{ route('dashboard') }}" class="btn btn-warning">Close</a>
             </div>
         </form>

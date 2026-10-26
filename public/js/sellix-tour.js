@@ -45,19 +45,122 @@
         });
     }
 
-    function placeHighlight(selector) {
-        clearHighlight();
-        if (!selector) {
-            return false;
-        }
-        var node = document.querySelector(selector);
+    function visible(node) {
         if (!node) {
             return false;
         }
-        node.classList.add('sx-tour-target');
-        if (node.scrollIntoView) {
-            node.scrollIntoView({ block: 'center', inline: 'nearest' });
+        var rect = node.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0 && window.getComputedStyle(node).visibility !== 'hidden';
+    }
+
+    function selectorFor(step) {
+        if (!step) {
+            return '';
         }
+        if (step.formAnchor && step.formRoute && cfg.page === step.formRoute && document.querySelector(step.formAnchor)) {
+            return step.formAnchor;
+        }
+        if (step.formAnchor) {
+            var field = document.querySelector(step.formAnchor);
+            if (visible(field)) {
+                return step.formAnchor;
+            }
+        }
+        return step.anchor || '';
+    }
+
+    function onStepPage(step) {
+        if (!step) {
+            return true;
+        }
+        var names = [step.route].concat(step.stay || []).concat(step.also || []);
+        if (step.formRoute) {
+            names.push(step.formRoute);
+        }
+        if (names.indexOf(cfg.page) !== -1) {
+            return true;
+        }
+        var path = window.location.pathname;
+        if (step.url && path === new URL(step.url, window.location.origin).pathname) {
+            return true;
+        }
+        if (step.formUrl && path === new URL(step.formUrl, window.location.origin).pathname) {
+            return true;
+        }
+        return false;
+    }
+
+    function overlaps(a, b) {
+        return !(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom);
+    }
+
+    function placePanel(target) {
+        var modal = document.querySelector('.modal.in .modal-dialog, .modal.show .modal-dialog');
+        document.body.classList.toggle('sx-tour-modal-open', !!(modal && cfg.state && cfg.state.mode === 'guided' && !cfg.state.paused));
+        if (modal) {
+            panel.style.top = '54px';
+            panel.style.right = '8px';
+            panel.style.left = '8px';
+            panel.style.bottom = 'auto';
+            return;
+        }
+        var spots = [
+            { top: '54px', right: '16px', left: 'auto', bottom: 'auto' },
+            { top: '54px', left: '16px', right: 'auto', bottom: 'auto' },
+            { bottom: '16px', left: '16px', top: 'auto', right: 'auto' }
+        ];
+        var avoid = [];
+        if (target) {
+            avoid.push(target.getBoundingClientRect());
+        }
+        document.querySelectorAll('button[type="submit"], .pos-pay-complete').forEach(function (button) {
+            if (visible(button)) {
+                avoid.push(button.getBoundingClientRect());
+            }
+        });
+        var chosen = spots[0];
+        spots.some(function (spot) {
+            panel.style.top = spot.top;
+            panel.style.right = spot.right;
+            panel.style.bottom = spot.bottom;
+            panel.style.left = spot.left;
+            var box = panel.getBoundingClientRect();
+            var blocked = avoid.some(function (rect) {
+                return overlaps(box, rect);
+            });
+            if (!blocked) {
+                chosen = spot;
+                return true;
+            }
+            return false;
+        });
+        panel.style.top = chosen.top;
+        panel.style.right = chosen.right;
+        panel.style.bottom = chosen.bottom;
+        panel.style.left = chosen.left;
+    }
+
+    var shownSelector = '';
+
+    function placeHighlight(selector, scroll) {
+        clearHighlight();
+        if (!selector) {
+            placePanel(null);
+            shownSelector = '';
+            return false;
+        }
+        var node = document.querySelector(selector);
+        if (!node || !visible(node)) {
+            placePanel(null);
+            shownSelector = '';
+            return false;
+        }
+        node.classList.add('sx-tour-target');
+        if (scroll && shownSelector !== selector && node.scrollIntoView) {
+            node.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        }
+        shownSelector = selector;
+        placePanel(node);
         return true;
     }
 
@@ -131,8 +234,8 @@
             anchor.textContent = link.label;
             links.appendChild(anchor);
         });
-        var found = placeHighlight(step.anchor);
-        var here = window.location.pathname === new URL(step.url, window.location.origin).pathname;
+        var found = placeHighlight(selectorFor(step), true);
+        var here = onStepPage(step);
         document.getElementById('sx-tour-missing').hidden = found;
         var open = document.getElementById('sx-tour-open');
         open.hidden = here;
@@ -151,7 +254,17 @@
         if (trigger.getAttribute('data-mode')) {
             body.mode = trigger.getAttribute('data-mode');
         }
-        post(body).then(render).catch(function (error) {
+        post(body).then(function (data) {
+            render(data);
+            var moves = action === 'next' || action === 'back' || action === 'choose' || action === 'resume' || action === 'restart';
+            if (moves && data.mode === 'guided' && !data.paused && !data.finished && data.step && !onStepPage(data.step)) {
+                window.location.href = data.step.url;
+            }
+        }).catch(function (error) {
+            if (action === 'next' && cfg.state && cfg.state.step && cfg.state.step.url && !onStepPage(cfg.state.step)) {
+                window.location.href = cfg.state.step.url;
+                return;
+            }
             setText('sx-tour-error', error.message);
         });
     });
@@ -166,4 +279,16 @@
     if (cfg.page && cfg.state && cfg.state.mode === 'guided' && !cfg.state.paused && !cfg.state.finished) {
         post({ action: 'seen', route: cfg.page }).then(render).catch(function () {});
     }
+    window.setInterval(function () {
+        if (!cfg.state || cfg.state.mode !== 'guided' || cfg.state.paused || cfg.state.finished || !cfg.state.step) {
+            document.body.classList.remove('sx-tour-modal-open');
+            return;
+        }
+        var nextSelector = selectorFor(cfg.state.step);
+        if (nextSelector !== shownSelector) {
+            placeHighlight(nextSelector, true);
+        } else {
+            placePanel(document.querySelector(nextSelector));
+        }
+    }, 700);
 })();

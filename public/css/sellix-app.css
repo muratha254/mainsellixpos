@@ -3012,21 +3012,57 @@ body.pos-body {
     top: 100%;
     z-index: 20;
     background: #fff;
-    border: 1px solid #ddd;
-    max-height: 240px;
+    border: 1px solid #e4d7a8;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+    max-height: 320px;
     overflow: auto;
 }
 
 .pos-search-item {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
     width: 100%;
     text-align: left;
     border: 0;
+    border-bottom: 1px solid #f3f0e6;
     background: #fff;
-    padding: 7px 10px;
+    padding: 8px 12px;
 }
 
-.pos-search-item:hover { background: #f7f3e6; }
+.pos-search-item:hover,
+.pos-search-item.is-active { background: #fbf6e8; }
+
+.pos-search-item.is-active { box-shadow: inset 3px 0 0 #c9a027; }
+
+.pos-search-main { min-width: 0; }
+
+.pos-search-name {
+    display: block;
+    font-weight: 700;
+    color: #222;
+}
+
+.pos-search-name mark {
+    background: #ffe08a;
+    padding: 0 1px;
+}
+
+.pos-search-meta {
+    display: block;
+    margin-top: 2px;
+    color: #777;
+    font-size: 12px;
+}
+
+.pos-search-meta .is-out { color: #a94442; font-weight: 700; }
+
+.pos-search-price {
+    font-weight: 700;
+    color: #8a6a10;
+    white-space: nowrap;
+}
 
 .pos-search-empty {
     padding: 8px 10px;

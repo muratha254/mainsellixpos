@@ -329,6 +329,50 @@ class OperationalWorkflowTest extends TestCase
         $this->assertEqualsWithDelta(-50.0, $balance('Inventory'), 0.02);
     }
 
+    public function test_a_cash_refund_does_not_make_the_sales_list_cash_total_negative(): void
+    {
+        $sell = function (int $quantity) {
+            $response = $this->actingAsAdmin()->postJson(route('pos.order'), [
+                'customer_id' => $this->customer->id,
+                'sale_date' => now()->toDateString(),
+                'document_type' => 'pos',
+                'items' => [
+                    ['product_id' => $this->product->id, 'quantity' => $quantity],
+                ],
+                'payment_amount' => round((float) $this->product->selling_price * $quantity, 2),
+                'payment_method' => 'cash',
+            ]);
+            $response->assertOk();
+
+            return Sale::query()->with('items')->findOrFail($response->json('id'));
+        };
+
+        $returned = $sell(2);
+        $item = $returned->items->first();
+        $this->actingAsAdmin()->post(route('sales.returns.store', $returned), [
+            'receipt_ref' => $returned->documentNumber(),
+            'want_refund' => '1',
+            'notes' => 'Customer returned the sale',
+            'items' => [[
+                'sale_item_id' => $item->id,
+                'quantity' => 2,
+                'condition' => 'yes',
+            ]],
+        ])->assertRedirect(route('sales.returns'));
+
+        $returned->refresh()->load(['payments', 'returns']);
+        $this->assertSame(Sale::STATUS_RETURNED, $returned->status);
+        $this->assertEquals(0.0, $returned->tenderByMethod('cash'));
+
+        $sell(8);
+
+        $this->actingAsAdmin()
+            ->get(route('sales.index'))
+            ->assertOk()
+            ->assertDontSee('data-order="-', false)
+            ->assertSee('>Ksh 800.00<', false);
+    }
+
     public function test_authorized_admin_can_view_credit_notes_index(): void
     {
         $this->actingAsAdmin()

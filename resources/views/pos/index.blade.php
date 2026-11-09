@@ -383,6 +383,9 @@
     var holdUrl = @json(route('pos.hold'));
     var orderUrl = @json(route('pos.order'));
     var holdsUrl = @json(route('pos.holds'));
+    var draftUrl = @json(route('pos.draft.show'));
+    var draftUserId = @json(auth()->id());
+    var draftBranchId = @json($draftBranchId);
     var token = $('meta[name="csrf-token"]').attr('content');
     function customerMenuLabel(name, phone, points) {
         var pts = parseFloat(points);
@@ -399,6 +402,13 @@
         dropdownCssClass: 'pos-customer-dropdown'
     });
     var cart = [];
+    var draftMute = true;
+    var draftDirty = false;
+    var draftRevision = 0;
+    var draftTimer = null;
+    var draftSaveSeq = 0;
+    var draftHoldPending = false;
+    var draftKey = 'sx-pos-draft:' + draftUserId + ':' + draftBranchId;
     var discountType = 'fixed';
     var discountValue = 0;
     var holdId = null;
@@ -551,6 +561,7 @@
         $('#sx-pos-discount').text(money(t.discount));
         $('#sx-pos-grand').text(money(t.grand));
         refreshPayPanel();
+        touchDraft();
     }
 
     var variantItem = null;
@@ -776,7 +787,13 @@
         discountValue = 0;
         holdId = null;
         clearPaymentFields();
+        var wasMuted = draftMute;
+        draftMute = true;
         renderCart();
+        draftMute = wasMuted;
+        draftDirty = false;
+        forgetDraftLocal();
+        clearDraftRemote();
     }
 
     function updateNavState() {
@@ -1179,7 +1196,10 @@
         applyLineQty($(this).data('i'), parseFloat($(this).val()));
     });
     $(document).on('input', '.pos-serial', function () {
-        cart[$(this).data('i')].serial = $(this).val();
+        var row = cart[$(this).data('i')];
+        if (!row) return;
+        row.serial = $(this).val();
+        touchDraft();
     });
     $(document).on('change', '.pos-type', function () {
         cart[$(this).data('i')].type = $(this).val();
@@ -1449,6 +1469,7 @@
         payAmountEdited = false;
         $('#sx-loyalty-points').val('0');
         refreshPayPanel();
+        touchDraft();
     });
     $('#sx-pay-with-points').on('click', function (e) {
         e.preventDefault();
@@ -1461,10 +1482,12 @@
         payWithPoints = !active;
         payAmountEdited = false;
         refreshPayPanel();
+        touchDraft();
     });
     $(document).on('click', '.pos-pay-method', function () {
         setPayMethod($(this).data('method'));
         $('#sx-pay-received-input').focus().select();
+        touchDraft();
     });
     $('#sx-pay-split').on('click', function (e) {
         e.preventDefault();
@@ -1477,14 +1500,17 @@
         }
         setSplitPay(!splitPay);
         refreshPayPanel();
+        touchDraft();
     });
-    $('#sx-pay-cash, #sx-pay-mpesa, #sx-pay-card').on('input', function () {
+    $('#sx-pay-cash, #sx-pay-mpesa, #sx-pay-card, #sx-pay-note, #sx-pos-date, #sx-pos-due, #sx-pos-doctype').on('input change', function () {
         refreshPayPanel();
+        touchDraft();
     });
     $('#sx-pay-received-input').on('input', function () {
         if (fillingReceived) return;
         payAmountEdited = true;
         refreshPayPanel();
+        touchDraft();
     });
     $('#sx-pay-received-input').on('focus', function () {
         if ((parseFloat($(this).val()) || 0) <= 0) {
@@ -1702,6 +1728,7 @@
             });
             cart = cart.filter(function (row) { return row.quantity > 0; });
             renderCart();
+            if (draftMute) draftHoldPending = true;
             $('#sx-pos-holds-modal').modal('hide');
         });
     }
@@ -1789,8 +1816,264 @@
         }
     });
 
+    function draftSnapshot() {
+        return {
+            hold_id: holdId || null,
+            customer_id: $('#sx-pos-customer').val() || null,
+            sale_date: $('#sx-pos-date').val() || '',
+            due_date: $('#sx-pos-due').val() || '',
+            document_type: $('#sx-pos-doctype').val() || 'pos',
+            discount_type: discountType,
+            discount_value: discountValue || 0,
+            pay_method: $('#sx-pay-method').val() || 'cash',
+            pay_amount_edited: payAmountEdited ? 1 : 0,
+            pay_with_points: payWithPoints ? 1 : 0,
+            split_pay: splitPay ? 1 : 0,
+            received: $('#sx-pay-received-input').val() || '0.00',
+            cash: $('#sx-pay-cash').val() || '0.00',
+            mpesa: $('#sx-pay-mpesa').val() || '0.00',
+            card: $('#sx-pay-card').val() || '0.00',
+            note: $('#sx-pay-note').val() || '',
+            items: cart.map(function (row) {
+                return {
+                    id: row.id,
+                    line_key: row.line_key,
+                    product_variant_id: row.product_variant_id || 0,
+                    product_unit_id: row.product_unit_id || null,
+                    sell_as: row.sell_as || 'base',
+                    unit_name: row.unit_name || '',
+                    unit_factor: row.unit_factor || 1,
+                    track_stock: row.track_stock ? 1 : 0,
+                    stock_base: row.stock_base || 0,
+                    name: row.name || '',
+                    price: row.price || 0,
+                    wholesale_price: row.wholesale_price || 0,
+                    promo_price: row.promo_price || 0,
+                    tax_inclusive: row.tax_inclusive ? 1 : 0,
+                    tax_rate: row.tax_rate || 0,
+                    tax_amount: row.tax_amount || 0,
+                    apply_tax: row.apply_tax ? 1 : 0,
+                    type: row.type || 'R',
+                    serial: row.serial || '',
+                    quantity: row.quantity
+                };
+            })
+        };
+    }
+    function draftIsBlank(snap) {
+        if (!snap) return true;
+        var customerId = snap.customer_id;
+        var walkIn = !customerId || (walkInId && String(customerId) === String(walkInId));
+        return (!snap.items || !snap.items.length)
+            && !snap.hold_id
+            && !(parseFloat(snap.discount_value) > 0)
+            && walkIn
+            && !parseInt(snap.pay_amount_edited, 10)
+            && !parseInt(snap.pay_with_points, 10)
+            && !parseInt(snap.split_pay, 10)
+            && !$.trim(snap.note || '');
+    }
+    function draftLines(items) {
+        var map = {};
+        var order = [];
+        (items || []).forEach(function (row) {
+            if (!row || row.id == null) return;
+            var key = String(row.line_key || (row.id + ':' + (row.product_variant_id || 0) + ':' + (row.sell_as || row.product_unit_id || 0)));
+            if (!map[key]) order.push(key);
+            map[key] = {
+                id: row.id,
+                line_key: key,
+                product_variant_id: parseInt(row.product_variant_id, 10) || 0,
+                product_unit_id: row.product_unit_id || null,
+                sell_as: row.sell_as || 'base',
+                unit_name: row.unit_name || '',
+                unit_factor: parseFloat(row.unit_factor) || 1,
+                track_stock: parseInt(row.track_stock, 10) === 1 || row.track_stock === true,
+                stock_base: parseFloat(row.stock_base) || 0,
+                name: row.name || '',
+                price: parseFloat(row.price) || 0,
+                wholesale_price: parseFloat(row.wholesale_price) || 0,
+                promo_price: parseFloat(row.promo_price) || 0,
+                tax_inclusive: parseInt(row.tax_inclusive, 10) === 1 || row.tax_inclusive === true,
+                tax_rate: parseFloat(row.tax_rate) || 0,
+                tax_amount: parseFloat(row.tax_amount) || 0,
+                apply_tax: parseInt(row.apply_tax, 10) === 1 || row.apply_tax === true,
+                type: row.type === 'W' || row.type === 'P' ? row.type : 'R',
+                serial: row.serial || '',
+                quantity: parseFloat(row.quantity) || 0
+            };
+        });
+        return order.map(function (key) { return map[key]; }).filter(function (row) { return row.quantity > 0; });
+    }
+    function rememberDraftLocal(snap) {
+        try {
+            sessionStorage.setItem(draftKey, JSON.stringify({
+                revision: draftRevision,
+                dirty: draftDirty,
+                snapshot: snap
+            }));
+        } catch (err) {}
+    }
+    function readDraftLocal() {
+        try {
+            var raw = sessionStorage.getItem(draftKey);
+            return raw ? JSON.parse(raw) : null;
+        } catch (err) {
+            return null;
+        }
+    }
+    function forgetDraftLocal() {
+        try { sessionStorage.removeItem(draftKey); } catch (err) {}
+    }
+    function applyDraft(snap) {
+        if (!snap) return;
+        var wasMuted = draftMute;
+        draftMute = true;
+        holdId = snap.hold_id || null;
+        discountType = snap.discount_type === 'percent' ? 'percent' : 'fixed';
+        discountValue = Math.max(0, parseFloat(snap.discount_value) || 0);
+        cart = draftLines(snap.items);
+        if (snap.customer_id) {
+            $('#sx-pos-customer').val(String(snap.customer_id)).trigger('change');
+        }
+        if (snap.sale_date) $('#sx-pos-date').val(snap.sale_date);
+        if (snap.due_date) $('#sx-pos-due').val(snap.due_date);
+        if (snap.document_type) $('#sx-pos-doctype').val(snap.document_type);
+        payAmountEdited = parseInt(snap.pay_amount_edited, 10) === 1 || snap.pay_amount_edited === true;
+        payWithPoints = parseInt(snap.pay_with_points, 10) === 1 || snap.pay_with_points === true;
+        if (snap.pay_method) setPayMethod(snap.pay_method);
+        setSplitPay(parseInt(snap.split_pay, 10) === 1 || snap.split_pay === true);
+        if (snap.received != null) $('#sx-pay-received-input').val(snap.received);
+        if (snap.cash != null) $('#sx-pay-cash').val(snap.cash);
+        if (snap.mpesa != null) $('#sx-pay-mpesa').val(snap.mpesa);
+        if (snap.card != null) $('#sx-pay-card').val(snap.card);
+        if (snap.note != null) $('#sx-pay-note').val(snap.note);
+        renderCart();
+        if (wasMuted) draftHoldPending = false;
+        draftMute = wasMuted;
+    }
+    function touchDraft() {
+        if (draftMute) {
+            if (cart.length || holdId) draftHoldPending = true;
+            return;
+        }
+        draftDirty = true;
+        rememberDraftLocal(draftSnapshot());
+        clearTimeout(draftTimer);
+        draftTimer = setTimeout(saveDraftNow, 250);
+    }
+    function saveDraftNow(retry) {
+        if (!draftUrl) return;
+        clearTimeout(draftTimer);
+        var seq = ++draftSaveSeq;
+        var snap = draftSnapshot();
+        if (draftIsBlank(snap)) {
+            draftDirty = false;
+            forgetDraftLocal();
+            return clearDraftRemote(seq);
+        }
+        rememberDraftLocal(snap);
+        var body = $.extend({}, snap, { base_revision: draftRevision });
+        return $.ajax({
+            url: draftUrl,
+            method: 'PUT',
+            contentType: 'application/json; charset=UTF-8',
+            data: JSON.stringify(body),
+            headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' }
+        }).done(function (data) {
+            if (seq !== draftSaveSeq) return;
+            if (data && data.stale) {
+                draftRevision = data.revision || draftRevision;
+                if (draftDirty && !retry) saveDraftNow(true);
+                return;
+            }
+            draftRevision = data.revision || draftRevision;
+            draftDirty = false;
+            rememberDraftLocal(draftSnapshot());
+        });
+    }
+    function clearDraftRemote(seq) {
+        if (!draftUrl) return;
+        var requestSeq = seq || ++draftSaveSeq;
+        clearTimeout(draftTimer);
+        return $.ajax({
+            url: draftUrl,
+            method: 'DELETE',
+            headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' }
+        }).done(function (data) {
+            if (requestSeq !== draftSaveSeq) return;
+            draftRevision = data.revision || draftRevision;
+            draftDirty = false;
+            forgetDraftLocal();
+        });
+    }
+    function flushDraft() {
+        if (draftMute || !draftDirty) return;
+        clearTimeout(draftTimer);
+        if (!draftUrl || !window.fetch) return;
+        var snap = draftSnapshot();
+        var headers = {
+            'X-CSRF-TOKEN': token,
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        };
+        if (draftIsBlank(snap)) {
+            fetch(draftUrl, { method: 'DELETE', headers: headers, keepalive: true, credentials: 'same-origin' });
+            return;
+        }
+        headers['Content-Type'] = 'application/json';
+        fetch(draftUrl, {
+            method: 'PUT',
+            headers: headers,
+            body: JSON.stringify($.extend({}, snap, { base_revision: draftRevision })),
+            keepalive: true,
+            credentials: 'same-origin'
+        });
+    }
+    document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'hidden') flushDraft();
+    });
+    window.addEventListener('pagehide', flushDraft);
+
+    function restoreDraft(data) {
+        var local = readDraftLocal();
+        var serverRevision = data && data.revision ? data.revision : 0;
+        var serverCart = data && data.cart ? data.cart : null;
+        if (!holdParam && local && local.dirty && (local.revision || 0) >= serverRevision && local.snapshot && !draftIsBlank(local.snapshot)) {
+            draftRevision = local.revision || 0;
+            draftDirty = true;
+            applyDraft(local.snapshot);
+            saveDraftNow();
+            return;
+        }
+        if (!holdParam && serverCart && !draftIsBlank(serverCart)) {
+            draftRevision = serverRevision;
+            draftDirty = false;
+            applyDraft(serverCart);
+            rememberDraftLocal(draftSnapshot());
+            return;
+        }
+        draftRevision = serverRevision;
+        draftDirty = false;
+        forgetDraftLocal();
+    }
+
     renderCart();
     $('#sx-pos-search').focus();
+    if (draftUrl) {
+        $.getJSON(draftUrl).done(function (data) {
+            if (draftHoldPending) return;
+            restoreDraft(data);
+        }).always(function () {
+            draftMute = false;
+            if (draftHoldPending) {
+                draftHoldPending = false;
+                touchDraft();
+            }
+        });
+    } else {
+        draftMute = false;
+    }
 })(jQuery);
 </script>
 @endpush

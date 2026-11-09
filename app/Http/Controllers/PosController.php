@@ -6,6 +6,7 @@ use App\Exceptions\NegativeStockException;
 use App\Models\Customer;
 use App\Models\OfflineSyncKey;
 use App\Models\Payment;
+use App\Models\PosDraftCart;
 use App\Models\Product;
 use App\Models\ProductBranchStock;
 use App\Models\ProductCategory;
@@ -55,7 +56,80 @@ class PosController extends Controller
             'canCreateCustomer' => auth()->user()->hasPermission('customers.create'),
             'paymentMethods' => config('sellix.payment_methods', []),
             'loyalty' => app(LoyaltyService::class)->rules((int) auth()->user()->company_id),
+            'draftBranchId' => $this->currentBranchId(),
         ]));
+    }
+
+    public function draft()
+    {
+        $this->authorizePermission('pos.view');
+
+        $draft = $this->findPosDraft();
+
+        return response()->json([
+            'revision' => $draft ? (int) $draft->revision : 0,
+            'cart' => $draft && is_array($draft->payload) ? $draft->payload : null,
+        ]);
+    }
+
+    public function saveDraft(Request $request)
+    {
+        $this->authorizePermission('pos.view');
+
+        $branchId = $this->currentBranchId();
+        abort_unless($branchId, 422, 'Select a branch first.');
+
+        $data = $this->validatedDraft($request);
+        $draft = PosDraftCart::query()
+            ->withoutGlobalScope('company')
+            ->firstOrNew([
+                'company_id' => auth()->user()->company_id,
+                'branch_id' => $branchId,
+                'user_id' => auth()->id(),
+            ]);
+
+        $base = $request->exists('base_revision') ? (int) $request->input('base_revision') : null;
+        if ($draft->exists && $base !== null && $base !== (int) $draft->revision) {
+            return response()->json([
+                'stale' => true,
+                'revision' => (int) $draft->revision,
+                'cart' => $draft->payload,
+            ]);
+        }
+
+        if ($this->draftPayloadIsBlank($data)) {
+            if ($draft->exists) {
+                $draft->payload = null;
+                $draft->revision = (int) $draft->revision + 1;
+                $draft->save();
+            }
+
+            return response()->json([
+                'revision' => (int) ($draft->revision ?? 0),
+                'cleared' => true,
+            ]);
+        }
+
+        $draft->payload = $data;
+        $draft->revision = (int) $draft->revision + 1;
+        $draft->save();
+
+        return response()->json([
+            'revision' => (int) $draft->revision,
+            'saved' => true,
+        ]);
+    }
+
+    public function clearDraft()
+    {
+        $this->authorizePermission('pos.view');
+        $this->forgetPosDraft();
+        $draft = $this->findPosDraft();
+
+        return response()->json([
+            'revision' => $draft ? (int) $draft->revision : 0,
+            'cleared' => true,
+        ]);
     }
 
     public function catalog(Request $request)
@@ -379,6 +453,8 @@ class PosController extends Controller
             throw $e;
         }
 
+        $this->forgetPosDraft();
+
         return response()->json([
             'id' => $sale->id,
             'number' => $sale->number,
@@ -526,6 +602,8 @@ class PosController extends Controller
             }
             throw $e;
         }
+
+        $this->forgetPosDraft();
 
         return $this->completedSaleResponse($sale);
     }
@@ -1171,6 +1249,8 @@ class PosController extends Controller
             return null;
         }
 
+        $this->forgetPosDraft();
+
         if ($sale->status === Sale::STATUS_HELD) {
             return response()->json([
                 'id' => $sale->id,
@@ -1197,5 +1277,126 @@ class PosController extends Controller
             'resource' => $resource,
             'resource_id' => $id,
         ]);
+    }
+
+    private function findPosDraft(): ?PosDraftCart
+    {
+        $branchId = $this->currentBranchId();
+        if (! $branchId || ! auth()->user()) {
+            return null;
+        }
+
+        return PosDraftCart::query()
+            ->withoutGlobalScope('company')
+            ->where('company_id', auth()->user()->company_id)
+            ->where('branch_id', $branchId)
+            ->where('user_id', auth()->id())
+            ->first();
+    }
+
+    private function forgetPosDraft(): void
+    {
+        $draft = $this->findPosDraft();
+        if (! $draft || $draft->payload === null) {
+            return;
+        }
+
+        $draft->payload = null;
+        $draft->revision = (int) $draft->revision + 1;
+        $draft->save();
+    }
+
+    private function validatedDraft(Request $request): array
+    {
+        $data = $request->validate([
+            'hold_id' => 'nullable|integer',
+            'customer_id' => 'nullable|integer',
+            'sale_date' => 'nullable|string|max:32',
+            'due_date' => 'nullable|string|max:32',
+            'document_type' => 'nullable|string|max:32',
+            'discount_type' => 'nullable|in:fixed,percent',
+            'discount_value' => 'nullable|numeric|min:0',
+            'pay_method' => 'nullable|string|max:32',
+            'pay_amount_edited' => 'nullable|boolean',
+            'pay_with_points' => 'nullable|boolean',
+            'split_pay' => 'nullable|boolean',
+            'received' => 'nullable|string|max:32',
+            'cash' => 'nullable|string|max:32',
+            'mpesa' => 'nullable|string|max:32',
+            'card' => 'nullable|string|max:32',
+            'note' => 'nullable|string|max:1000',
+            'items' => 'present|array|max:200',
+            'items.*.id' => 'required|integer',
+            'items.*.line_key' => 'nullable|string|max:80',
+            'items.*.product_variant_id' => 'nullable|integer',
+            'items.*.product_unit_id' => 'nullable|integer',
+            'items.*.sell_as' => 'nullable|string|max:32',
+            'items.*.unit_name' => 'nullable|string|max:64',
+            'items.*.unit_factor' => 'nullable|numeric|min:0',
+            'items.*.track_stock' => 'nullable|boolean',
+            'items.*.stock_base' => 'nullable|numeric',
+            'items.*.name' => 'nullable|string|max:255',
+            'items.*.price' => 'required|numeric|min:0',
+            'items.*.wholesale_price' => 'nullable|numeric|min:0',
+            'items.*.promo_price' => 'nullable|numeric|min:0',
+            'items.*.tax_inclusive' => 'nullable|boolean',
+            'items.*.tax_rate' => 'nullable|numeric|min:0',
+            'items.*.tax_amount' => 'nullable|numeric|min:0',
+            'items.*.apply_tax' => 'nullable|boolean',
+            'items.*.type' => 'nullable|in:R,W,P',
+            'items.*.serial' => 'nullable|string|max:255',
+            'items.*.quantity' => 'required|numeric|min:0.0001|max:1000000',
+        ]);
+
+        if (! empty($data['customer_id']) && ! Customer::query()->whereKey($data['customer_id'])->exists()) {
+            $data['customer_id'] = null;
+        }
+        if (! empty($data['hold_id']) && ! Sale::query()->where('status', Sale::STATUS_HELD)->whereKey($data['hold_id'])->exists()) {
+            $data['hold_id'] = null;
+        }
+
+        $data['discount_type'] = ($data['discount_type'] ?? 'fixed') === 'percent' ? 'percent' : 'fixed';
+        $data['discount_value'] = round((float) ($data['discount_value'] ?? 0), 2);
+        $data['document_type'] = $data['document_type'] ?? 'pos';
+        $data['pay_method'] = $data['pay_method'] ?? 'cash';
+        $data['items'] = $this->dedupeDraftItems($data['items']);
+
+        return $data;
+    }
+
+    private function dedupeDraftItems(array $items): array
+    {
+        $map = [];
+        $order = [];
+        foreach ($items as $row) {
+            $key = trim((string) ($row['line_key'] ?? ''));
+            if ($key === '') {
+                $key = $row['id'] . ':' . (int) ($row['product_variant_id'] ?? 0) . ':' . ($row['sell_as'] ?? 'base');
+            }
+            $row['line_key'] = $key;
+            if (! isset($map[$key])) {
+                $order[] = $key;
+            }
+            $map[$key] = $row;
+        }
+
+        $clean = [];
+        foreach ($order as $key) {
+            $clean[] = $map[$key];
+        }
+
+        return $clean;
+    }
+
+    private function draftPayloadIsBlank(array $data): bool
+    {
+        return ($data['items'] ?? []) === []
+            && empty($data['hold_id'])
+            && (float) ($data['discount_value'] ?? 0) <= 0
+            && trim((string) ($data['note'] ?? '')) === ''
+            && empty($data['pay_with_points'])
+            && empty($data['split_pay'])
+            && empty($data['pay_amount_edited'])
+            && empty($data['customer_id']);
     }
 }

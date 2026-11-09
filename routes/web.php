@@ -392,6 +392,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/pos/holds/{sale}/print', [PosController::class, 'printHold'])->name('pos.holds.print');
         Route::get('/pos/holds/{sale}', [PosController::class, 'showHold'])->name('pos.holds.show');
         Route::get('/pos/sales/{sale}/receipt', [PosController::class, 'receipt'])->name('pos.receipt');
+        Route::get('/pos/draft', [PosController::class, 'draft'])->name('pos.draft.show');
+        Route::put('/pos/draft', [PosController::class, 'saveDraft'])->name('pos.draft.save');
+        Route::delete('/pos/draft', [PosController::class, 'clearDraft'])->name('pos.draft.clear');
     });
 
     Route::middleware('permission:pos.operate')->group(function () {

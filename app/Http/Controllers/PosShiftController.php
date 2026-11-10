@@ -151,6 +151,12 @@ class PosShiftController extends Controller
             }
         }
 
+        $varianceRow = (clone $query)->reorder()
+            ->selectRaw('SUM(cash_variance) as cash_variance, SUM(mpesa_variance) as mpesa_variance')
+            ->first();
+        $cashVarianceTotal = round((float) ($varianceRow->cash_variance ?? 0), 2);
+        $mpesaVarianceTotal = round((float) ($varianceRow->mpesa_variance ?? 0), 2);
+
         $rows = $query->paginate(25)->withQueryString();
         $rows->getCollection()->transform(function (PosShift $shift) use ($shifts) {
             $shift->report = $shifts->report($shift);
@@ -165,6 +171,9 @@ class PosShiftController extends Controller
             'cashiers' => $this->cashierOptions($user),
             'branches' => $this->branchOptions($user),
             'canApprove' => $user->hasPermission('pos.shifts.approve'),
+            'cashVarianceTotal' => $cashVarianceTotal,
+            'mpesaVarianceTotal' => $mpesaVarianceTotal,
+            'varianceTotal' => round($cashVarianceTotal + $mpesaVarianceTotal, 2),
         ]));
     }
 

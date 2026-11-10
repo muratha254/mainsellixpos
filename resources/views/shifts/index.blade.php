@@ -95,6 +95,27 @@
     </div>
 </div>
 
+<div class="row">
+    <div class="col-sm-4">
+        <div class="sx-shift-figure">
+            <span>Cash variance</span>
+            <strong class="{{ $varianceClass($cashVarianceTotal) }}">{{ $varianceText($cashVarianceTotal) }}</strong>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="sx-shift-figure">
+            <span>M-Pesa variance</span>
+            <strong class="{{ $varianceClass($mpesaVarianceTotal) }}">{{ $varianceText($mpesaVarianceTotal) }}</strong>
+        </div>
+    </div>
+    <div class="col-sm-4">
+        <div class="sx-shift-figure">
+            <span>Total variance</span>
+            <strong class="sx-shift-total {{ $varianceClass($varianceTotal) }}">{{ $varianceText($varianceTotal) }}</strong>
+        </div>
+    </div>
+</div>
+
 <div class="sx-acc-card">
     <div class="sx-acc-card-head">Shifts</div>
     <div class="sx-acc-card-body table-responsive">
@@ -150,6 +171,15 @@
                     <tr><td colspan="16">No shifts for this filter.</td></tr>
                 @endforelse
             </tbody>
+            <tfoot>
+                <tr>
+                    <th colspan="11" class="text-right">Total variance</th>
+                    <th class="{{ $varianceClass($cashVarianceTotal) }}">{{ $varianceText($cashVarianceTotal) }}</th>
+                    <th class="{{ $varianceClass($mpesaVarianceTotal) }}">{{ $varianceText($mpesaVarianceTotal) }}</th>
+                    <th class="{{ $varianceClass($varianceTotal) }}">{{ $varianceText($varianceTotal) }}</th>
+                    <th colspan="2"></th>
+                </tr>
+            </tfoot>
         </table>
         {{ $shifts->links() }}
     </div>

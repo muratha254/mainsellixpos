@@ -321,7 +321,9 @@ class PosShiftTest extends TestCase
 
         $this->actingAsAdmin()->get(route('shifts.index'))
             ->assertOk()
-            ->assertSee('Approve');
+            ->assertSee('Approve')
+            ->assertSee('Total variance')
+            ->assertSee('KSh -100.00');
 
         $this->actingAsAdmin()->get(route('shifts.show', $shift))
             ->assertOk()

@@ -194,12 +194,13 @@ class PosShiftTest extends TestCase
         ])->assertRedirect(route('pos.shift.open'));
         $this->assertEquals(14500.0, (float) $shift->fresh()->actual_cash);
 
-        $this->actingAsCashier()->get(route('shifts.show', $shift))
+        $this->actingAsCashier()->get(route('shifts.show', $shift))->assertForbidden();
+        $this->actingAsAdmin()->get(route('shifts.show', $shift))
             ->assertOk()
             ->assertSee('KSh -500.00')
             ->assertSee('Shortage')
             ->assertSee('Pending Approval')
-            ->assertDontSee('Approve variance');
+            ->assertSee('Approve variance');
 
         $this->actingAsCashier()->post(route('shifts.approve', $shift))->assertForbidden();
 
@@ -234,7 +235,7 @@ class PosShiftTest extends TestCase
         $this->actingAsCashier()->post(route('pos.shift.close.store'), [
             'actual_cash' => 0,
             'actual_mpesa' => 0,
-        ])->assertRedirect(route('shifts.show', $shift));
+        ])->assertRedirect(route('pos.shift.open'));
 
         $shift->refresh();
         $this->assertSame(PosShift::STATUS_CLOSED, $shift->status);
@@ -267,7 +268,9 @@ class PosShiftTest extends TestCase
         $this->assertEquals(20.0, (float) $shift->mpesa_variance);
         $this->assertSame(PosShift::STATUS_PENDING, $shift->status);
 
-        $this->actingAsCashier()->get(route('shifts.show', $shift))
+        $this->actingAsCashier()->get(route('shifts.show', $shift))->assertForbidden();
+        $this->actingAsAdmin()->get(route('shifts.show', $shift))
+            ->assertOk()
             ->assertSee('Surplus')
             ->assertSee('KSh 20.00');
     }
@@ -426,21 +429,15 @@ class PosShiftTest extends TestCase
             'opening_mpesa' => 30,
         ]);
 
-        $this->actingAsCashier()->get(route('shifts.index'))
-            ->assertOk()
-            ->assertSee('SHF-CASHIER')
-            ->assertSee('Shift Reports')
-            ->assertSee('View')
-            ->assertDontSee('SHF-ADMIN')
-            ->assertDontSee('SHF-OTHER');
+        $this->actingAsCashier()->get(route('shifts.index'))->assertForbidden();
+        $this->actingAsCashier()->get(route('shifts.show', PosShift::query()->where('number', 'SHF-CASHIER')->first()))
+            ->assertForbidden();
 
         $manager = $this->makeUser('Manager', 'manager@test.local', 'manager', PermissionCatalog::BRANCH_MANAGER);
         $this->actingAs($manager->fresh(['role.permissions']))
             ->withSession(['current_branch_id' => $this->branch->id])
             ->get(route('shifts.index'))
-            ->assertOk()
-            ->assertSee('SHF-CASHIER')
-            ->assertDontSee('SHF-OTHER');
+            ->assertForbidden();
 
         $this->actingAsAdmin()->get(route('shifts.index', ['approval' => 'none', 'branch_id' => $this->secondaryBranch->id]))
             ->assertOk()

@@ -338,8 +338,7 @@ class PermissionCatalog
 
                     'dashboard.view',
 
-                    'pos.view', 'pos.operate', 'pos.hold', 'pos.discount', 'pos.void', 'pos.credit_sale', 'pos.shift', 'pos.shifts.view',
-
+                    'pos.view', 'pos.operate', 'pos.hold', 'pos.discount', 'pos.void', 'pos.credit_sale', 'pos.shift', 
                     'products.view', 'products.create', 'products.update', 'products.view_cost',
 
                     'categories.view', 'categories.manage', 'brands.view', 'brands.manage', 'units.view', 'units.manage',
@@ -394,8 +393,7 @@ class PermissionCatalog
 
                     'dashboard.view',
 
-                    'pos.view', 'pos.operate', 'pos.hold', 'pos.shift', 'pos.shifts.view',
-
+                    'pos.view', 'pos.operate', 'pos.hold', 'pos.shift', 
                     'products.view',
 
                     'categories.view',
@@ -448,8 +446,7 @@ class PermissionCatalog
 
                     'dashboard.view',
 
-                    'pos.view', 'pos.operate', 'pos.hold', 'pos.shift', 'pos.shifts.view',
-
+                    'pos.view', 'pos.operate', 'pos.hold', 'pos.shift', 
                     'products.view',
 
                     'sales.view', 'sales.create', 'sales.print_invoice', 'sales.print_receipt', 'sales.delivery_note',

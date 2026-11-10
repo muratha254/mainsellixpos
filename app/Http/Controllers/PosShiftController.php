@@ -114,6 +114,10 @@ class PosShiftController extends Controller
             ? 'Shift ' . $closed->number . ' is closed and waiting for an administrator to review the variance.'
             : 'Shift ' . $closed->number . ' is closed. The cash and M-Pesa balances match.';
 
+        if (! auth()->user()->hasPermission('pos.shifts.view')) {
+            return redirect()->route('pos.shift.open')->with('success', $message);
+        }
+
         return redirect()->route('shifts.show', $closed)->with('success', $message);
     }
 

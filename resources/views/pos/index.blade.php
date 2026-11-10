@@ -384,6 +384,8 @@
     var orderUrl = @json(route('pos.order'));
     var holdsUrl = @json(route('pos.holds'));
     var draftUrl = @json(route('pos.draft.show'));
+    var draftSaveUrl = @json(route('pos.draft.save'));
+    var draftClearUrl = @json(route('pos.draft.clear'));
     var draftUserId = @json(auth()->id());
     var draftBranchId = @json($draftBranchId);
     var token = $('meta[name="csrf-token"]').attr('content');
@@ -1586,6 +1588,7 @@
             return;
         }
 
+        clearTimeout(draftTimer);
         var payload = cartPayload();
         payload.notes = $('#sx-pay-note').val();
         payload.service_type = '';
@@ -1960,7 +1963,7 @@
         draftDirty = true;
         rememberDraftLocal(draftSnapshot());
         clearTimeout(draftTimer);
-        draftTimer = setTimeout(saveDraftNow, 250);
+        draftTimer = setTimeout(saveDraftNow, 800);
     }
     function saveDraftNow(retry) {
         if (!draftUrl) return;
@@ -1975,11 +1978,10 @@
         rememberDraftLocal(snap);
         var body = $.extend({}, snap, { base_revision: draftRevision });
         return $.ajax({
-            url: draftUrl,
-            method: 'PUT',
-            contentType: 'application/json; charset=UTF-8',
-            data: JSON.stringify(body),
-            headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' }
+            url: draftSaveUrl,
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' },
+            data: body
         }).done(function (data) {
             if (seq !== draftSaveSeq) return;
             if (data && data.stale) {
@@ -1997,8 +1999,8 @@
         var requestSeq = seq || ++draftSaveSeq;
         clearTimeout(draftTimer);
         return $.ajax({
-            url: draftUrl,
-            method: 'DELETE',
+            url: draftClearUrl,
+            method: 'POST',
             headers: { 'X-CSRF-TOKEN': token, 'Accept': 'application/json' }
         }).done(function (data) {
             if (requestSeq !== draftSaveSeq) return;
@@ -2007,28 +2009,21 @@
             forgetDraftLocal();
         });
     }
+    function beaconDraft(url, fields) {
+        if (!url || !navigator.sendBeacon) return;
+        var body = $.extend({}, fields || {}, { _token: token });
+        var encoded = $.param(body);
+        navigator.sendBeacon(url, new Blob([encoded], { type: 'application/x-www-form-urlencoded;charset=UTF-8' }));
+    }
     function flushDraft() {
         if (draftMute || !draftDirty) return;
         clearTimeout(draftTimer);
-        if (!draftUrl || !window.fetch) return;
         var snap = draftSnapshot();
-        var headers = {
-            'X-CSRF-TOKEN': token,
-            'Accept': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'
-        };
         if (draftIsBlank(snap)) {
-            fetch(draftUrl, { method: 'DELETE', headers: headers, keepalive: true, credentials: 'same-origin' });
+            beaconDraft(draftClearUrl, {});
             return;
         }
-        headers['Content-Type'] = 'application/json';
-        fetch(draftUrl, {
-            method: 'PUT',
-            headers: headers,
-            body: JSON.stringify($.extend({}, snap, { base_revision: draftRevision })),
-            keepalive: true,
-            credentials: 'same-origin'
-        });
+        beaconDraft(draftSaveUrl, $.extend({}, snap, { base_revision: draftRevision }));
     }
     document.addEventListener('visibilitychange', function () {
         if (document.visibilityState === 'hidden') flushDraft();

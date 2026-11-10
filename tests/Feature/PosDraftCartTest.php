@@ -31,7 +31,7 @@ class PosDraftCartTest extends TestCase
         $stockMoves = StockMovement::query()->count();
         $sales = Sale::query()->count();
 
-        $saved = $this->actingAsCashier()->putJson(route('pos.draft.save'), [
+        $saved = $this->actingAsCashier()->postJson(route('pos.draft.save'), [
             'base_revision' => 0,
             'customer_id' => $buyer->id,
             'discount_type' => 'percent',
@@ -65,7 +65,7 @@ class PosDraftCartTest extends TestCase
             ->assertOk()
             ->assertJsonPath('cart', null);
 
-        $updated = $this->actingAsCashier()->putJson(route('pos.draft.save'), [
+        $updated = $this->actingAsCashier()->postJson(route('pos.draft.save'), [
             'base_revision' => $revision,
             'customer_id' => $buyer->id,
             'discount_type' => 'percent',
@@ -77,7 +77,7 @@ class PosDraftCartTest extends TestCase
         $updated->assertOk()->assertJsonPath('saved', true);
         $next = (int) $updated->json('revision');
 
-        $this->actingAsCashier()->putJson(route('pos.draft.save'), [
+        $this->actingAsCashier()->postJson(route('pos.draft.save'), [
             'base_revision' => $revision,
             'customer_id' => $buyer->id,
             'items' => [
@@ -89,7 +89,7 @@ class PosDraftCartTest extends TestCase
             ->assertJsonPath('revision', $next)
             ->assertJsonPath('cart.items.0.quantity', 3);
 
-        $this->actingAsCashier()->deleteJson(route('pos.draft.clear'))
+        $this->actingAsCashier()->postJson(route('pos.draft.clear'))
             ->assertOk()
             ->assertJsonPath('cleared', true);
 
@@ -102,7 +102,7 @@ class PosDraftCartTest extends TestCase
 
     public function test_completing_a_sale_clears_only_that_cashiers_cart(): void
     {
-        $this->actingAsCashier()->putJson(route('pos.draft.save'), [
+        $this->actingAsCashier()->postJson(route('pos.draft.save'), [
             'base_revision' => 0,
             'customer_id' => $this->customer->id,
             'items' => [
@@ -110,7 +110,7 @@ class PosDraftCartTest extends TestCase
             ],
         ])->assertOk();
 
-        $this->actingAsAdmin()->putJson(route('pos.draft.save'), [
+        $this->actingAsAdmin()->postJson(route('pos.draft.save'), [
             'base_revision' => 0,
             'customer_id' => $this->customer->id,
             'items' => [
@@ -143,7 +143,7 @@ class PosDraftCartTest extends TestCase
         $response->assertOk();
         $this->assertStringContainsString(json_encode(route('pos.draft.show')), $response->getContent());
 
-        $this->actingAsInventoryManager()->putJson(route('pos.draft.save'), [
+        $this->actingAsInventoryManager()->postJson(route('pos.draft.save'), [
             'base_revision' => 0,
             'items' => [
                 $this->line('nope', 1, 'base', 'Piece'),

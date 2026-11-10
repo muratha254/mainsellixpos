@@ -389,6 +389,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/pos/shift/open', [PosShiftController::class, 'open'])->name('pos.shift.store');
         Route::get('/pos/shift/close', [PosShiftController::class, 'closeForm'])->name('pos.shift.close');
         Route::post('/pos/shift/close', [PosShiftController::class, 'close'])->name('pos.shift.close.store');
+        Route::post('/pos/shift/{shift}/reopen-request', [PosShiftController::class, 'requestReopen'])->name('pos.shift.reopen.request');
     });
     Route::middleware('permission:pos.shifts.view')->group(function () {
         Route::get('/shifts', [PosShiftController::class, 'index'])->name('shifts.index');
@@ -398,6 +399,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/shifts/{shift}/approve', [PosShiftController::class, 'approve'])->name('shifts.approve');
         Route::post('/shifts/{shift}/reject', [PosShiftController::class, 'reject'])->name('shifts.reject');
         Route::post('/shifts/{shift}/adjustments', [PosShiftController::class, 'adjust'])->name('shifts.adjust');
+        Route::post('/shifts/{shift}/reopen', [PosShiftController::class, 'approveReopen'])->name('shifts.reopen');
     });
 
     Route::middleware('permission:pos.view')->group(function () {

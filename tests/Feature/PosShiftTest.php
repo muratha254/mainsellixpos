@@ -295,12 +295,74 @@ class PosShiftTest extends TestCase
         ])->assertRedirect(route('pos.shift.open'));
         $this->assertEquals(10.0, (float) $shift->fresh()->actual_cash);
 
+        $this->actingAsCashier()->from(route('pos.shift.open'))
+            ->post(route('pos.shift.store'), [
+                'opening_cash' => 100,
+                'opening_mpesa' => 0,
+            ])->assertSessionHas('error');
+        $this->assertSame(PosShift::STATUS_REJECTED, $shift->fresh()->status);
+        $this->assertEquals(10.0, (float) $shift->fresh()->actual_cash);
+        $this->assertSame(0, PosShift::query()->where('user_id', $this->cashier->id)->where('status', PosShift::STATUS_OPEN)->count());
+    }
+
+    public function test_a_closed_shift_reopens_for_the_same_day_only_after_an_administrator_approves(): void
+    {
+        $shift = $this->cashierShift();
+        $this->actingAsCashier()->post(route('pos.shift.close.store'), [
+            'actual_cash' => 0,
+            'actual_mpesa' => 0,
+        ])->assertRedirect();
+
+        $this->actingAsCashier()->get(route('pos.index'))
+            ->assertRedirect(route('pos.shift.open'));
+        $this->actingAsCashier()->get(route('pos.shift.open'))
+            ->assertOk()
+            ->assertSee('already closed for today')
+            ->assertSee('Request reopen')
+            ->assertDontSee('Cash opening balance');
+
+        $this->actingAsCashier()->post(route('shifts.reopen', $shift))->assertForbidden();
+        $this->actingAsCashier()->post(route('pos.shift.reopen.request', $shift))
+            ->assertSessionHas('success');
+
+        $shift->refresh();
+        $this->assertNotNull($shift->reopen_requested_at);
+        $this->assertSame(PosShift::STATUS_CLOSED, $shift->status);
+
+        $this->actingAsAdmin()->get(route('shifts.index'))
+            ->assertOk()
+            ->assertSee('Approve reopen')
+            ->assertSee('Reopen requested');
+
+        $this->actingAsAdmin()->post(route('shifts.reopen', $shift))
+            ->assertRedirect(route('shifts.show', $shift));
+
+        $shift->refresh();
+        $this->assertSame(PosShift::STATUS_OPEN, $shift->status);
+        $this->assertSame(1, (int) $shift->is_open);
+        $this->assertNull($shift->actual_cash);
+        $this->assertNull($shift->cash_variance);
+        $this->assertNull($shift->reopen_requested_at);
+        $this->assertSame($this->admin->id, (int) $shift->reopened_by);
+        $this->assertSame(1, PosShift::query()->where('user_id', $this->cashier->id)->count());
+        $this->assertSame(1, PosShiftAdjustment::query()->where('pos_shift_id', $shift->id)->count());
+
+        $sold = $this->sell(1, [['method' => 'cash', 'amount' => 100]]);
+        $sold->assertOk();
+        $this->assertSame($shift->id, (int) Sale::query()->find($sold->json('id'))->pos_shift_id);
+
+        $shift->update([
+            'opened_at' => now()->subDay(),
+            'closed_at' => now()->subDay(),
+            'status' => PosShift::STATUS_CLOSED,
+            'is_open' => null,
+        ]);
+        $this->actingAsAdmin()->post(route('shifts.reopen', $shift))->assertSessionHas('error');
         $this->actingAsCashier()->post(route('pos.shift.store'), [
-            'opening_cash' => 100,
+            'opening_cash' => 25,
             'opening_mpesa' => 0,
         ])->assertRedirect(route('pos.index'));
-        $this->assertSame(PosShift::STATUS_REJECTED, $shift->fresh()->status);
-        $this->assertSame(1, PosShift::query()->where('user_id', $this->cashier->id)->where('status', PosShift::STATUS_OPEN)->count());
+        $this->assertSame(2, PosShift::query()->where('user_id', $this->cashier->id)->count());
     }
 
     public function test_an_administrator_can_approve_their_own_variance(): void

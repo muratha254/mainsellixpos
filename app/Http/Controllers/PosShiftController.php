@@ -24,10 +24,13 @@ class PosShiftController extends Controller
             return redirect()->route('pos.index');
         }
 
+        $today = $existing ? null : $shifts->findToday($user);
+
         return view('shifts.open', array_merge(fleet_shared_view_data(), [
             'activeMenu' => 'shifts.open',
             'branch' => Branch::query()->find($branchId),
             'existing' => $existing,
+            'closedToday' => $today && ! $today->isOpen() ? $today : null,
         ]));
     }
 
@@ -111,6 +114,36 @@ class PosShiftController extends Controller
         return redirect()->route('shifts.show', $closed)->with('success', $message);
     }
 
+    public function requestReopen(PosShift $shift, PosShiftService $shifts)
+    {
+        $this->authorizePermission('pos.shift');
+        $this->assertVisible($shift);
+
+        try {
+            $shifts->requestReopen($shift, auth()->user());
+        } catch (InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', $shift->number . ' is waiting for an administrator to approve reopening it.');
+    }
+
+    public function approveReopen(PosShift $shift, PosShiftService $shifts)
+    {
+        $this->authorizePermission('pos.shifts.approve');
+        $this->assertVisible($shift);
+
+        try {
+            $reopened = $shifts->approveReopen($shift, auth()->user());
+        } catch (InvalidArgumentException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return redirect()
+            ->route('shifts.show', $reopened)
+            ->with('success', $reopened->number . ' is open again. The cashier can continue selling on the same shift.');
+    }
+
     public function index(Request $request, PosShiftService $shifts)
     {
         $this->authorizePermission('pos.shifts.view');
@@ -171,6 +204,7 @@ class PosShiftController extends Controller
             'cashiers' => $this->cashierOptions($user),
             'branches' => $this->branchOptions($user),
             'canApprove' => $user->hasPermission('pos.shifts.approve'),
+            'businessTimezone' => $shifts->businessTimezone($user),
             'cashVarianceTotal' => $cashVarianceTotal,
             'mpesaVarianceTotal' => $mpesaVarianceTotal,
             'varianceTotal' => round($cashVarianceTotal + $mpesaVarianceTotal, 2),
@@ -183,7 +217,7 @@ class PosShiftController extends Controller
         $this->assertVisible($shift);
 
         $shift->load([
-            'cashier', 'branch', 'reviewer', 'closedBy',
+            'cashier', 'branch', 'reviewer', 'closedBy', 'reopenedBy',
             'adjustments.user',
             'sales' => function ($query) {
                 $query->withoutGlobalScope('branch')
@@ -202,6 +236,8 @@ class PosShiftController extends Controller
             'figures' => $shifts->report($shift),
             'canApprove' => $user->hasPermission('pos.shifts.approve'),
             'canReviewThis' => $this->canReview($user, $shift),
+            'canApproveReopen' => $this->canApproveReopen($user, $shift, $shifts),
+            'canRequestReopen' => $this->canRequestReopen($user, $shift, $shifts),
             'paymentLabels' => config('sellix.payment_methods', []),
         ]));
     }
@@ -292,6 +328,22 @@ class PosShiftController extends Controller
     {
         return $user->hasPermission('pos.shifts.approve')
             && $shift->status === PosShift::STATUS_PENDING;
+    }
+
+    private function canApproveReopen(User $user, PosShift $shift, PosShiftService $shifts): bool
+    {
+        return $user->hasPermission('pos.shifts.approve')
+            && ! $shift->isOpen()
+            && $shifts->openedToday($shift, $user);
+    }
+
+    private function canRequestReopen(User $user, PosShift $shift, PosShiftService $shifts): bool
+    {
+        return ! $user->hasPermission('pos.shifts.approve')
+            && (int) $shift->user_id === (int) $user->id
+            && ! $shift->isOpen()
+            && ! $shift->reopen_requested_at
+            && $shifts->openedToday($shift, $user);
     }
 
     private function cashierOptions(User $user)

@@ -158,11 +158,37 @@
                         <td class="{{ $varianceClass($report['cash_variance']) }}">{{ $varianceText($report['cash_variance']) }}</td>
                         <td class="{{ $varianceClass($report['mpesa_variance']) }}">{{ $varianceText($report['mpesa_variance']) }}</td>
                         <td class="{{ $varianceClass($report['total_variance']) }}">{{ $varianceText($report['total_variance']) }}</td>
-                        <td><span class="sx-shift-badge sx-shift-{{ $shift->status }}">{{ $shift->statusLabel() }}</span></td>
+                        <td>
+                            <span class="sx-shift-badge sx-shift-{{ $shift->status }}">{{ $shift->statusLabel() }}</span>
+                            @if($shift->reopen_requested_at)
+                                <div>Reopen requested</div>
+                            @endif
+                        </td>
                         <td style="white-space:nowrap;">
-                            @if($canApprove && $shift->status === \App\Models\PosShift::STATUS_PENDING)
+                            @php
+                                $closedToday = $shift->opened_at
+                                    && $shift->opened_at->copy()->timezone($businessTimezone)->isSameDay(now($businessTimezone))
+                                    && ! $shift->isOpen();
+                                $showReopen = $canApprove && $closedToday && $shift->reopen_requested_at;
+                                $showApprove = $canApprove && $shift->status === \App\Models\PosShift::STATUS_PENDING;
+                                $showRequest = ! $canApprove && $closedToday && (int) $shift->user_id === (int) auth()->id() && ! $shift->reopen_requested_at;
+                            @endphp
+                            @if($showReopen)
+                                <form method="post" action="{{ route('shifts.reopen', $shift) }}" style="display:inline;">
+                                    @csrf
+                                    <button type="submit" class="btn btn-xs btn-warning">Approve reopen</button>
+                                </form>
+                            @endif
+                            @if($showApprove)
                                 <a href="{{ route('shifts.show', $shift) }}#sx-shift-review" class="btn btn-xs btn-success">Approve</a>
-                            @else
+                            @endif
+                            @if($showRequest)
+                                <form method="post" action="{{ route('pos.shift.reopen.request', $shift) }}" style="display:inline;">
+                                    @csrf
+                                    <button type="submit" class="btn btn-xs btn-primary">Request reopen</button>
+                                </form>
+                            @endif
+                            @if(! $showReopen && ! $showApprove && ! $showRequest)
                                 <a href="{{ route('shifts.show', $shift) }}" class="btn btn-xs btn-default">View</a>
                             @endif
                         </td>

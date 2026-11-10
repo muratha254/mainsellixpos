@@ -31,6 +31,21 @@
                     <a href="{{ route('pos.shift.close') }}" class="btn btn-warning">Close that shift</a>
                 </div>
             </div>
+        @elseif($closedToday)
+            <div class="sx-acc-card">
+                <div class="sx-acc-card-head">Shift already closed today</div>
+                <div class="sx-acc-card-body">
+                    <p>{{ $closedToday->number }} is already closed for today. An administrator has to approve reopening it before you can sell again. The same shift and opening balance continue.</p>
+                    @if($closedToday->reopen_requested_at)
+                        <p>Waiting for an administrator to approve the reopen.</p>
+                    @else
+                        <form method="post" action="{{ route('pos.shift.reopen.request', $closedToday) }}">
+                            @csrf
+                            <button type="submit" class="btn btn-primary">Request reopen</button>
+                        </form>
+                    @endif
+                </div>
+            </div>
         @else
             <form method="post" action="{{ route('pos.shift.store') }}" class="sx-acc-card" id="sx-open-shift">
                 @csrf

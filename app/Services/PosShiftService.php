@@ -29,6 +29,34 @@ class PosShiftService
             ->first();
     }
 
+    public function findToday(User $user): ?PosShift
+    {
+        return PosShift::query()
+            ->where('user_id', $user->id)
+            ->whereBetween('opened_at', $this->businessDayBounds($user))
+            ->orderByDesc('opened_at')
+            ->first();
+    }
+
+    public function businessTimezone(User $user): string
+    {
+        $company = $user->relationLoaded('company') ? $user->company : $user->company()->first();
+        $zone = $company ? ($company->timezone ?: null) : null;
+
+        return $zone ?: (string) config('sellix.timezone', 'Africa/Nairobi');
+    }
+
+    public function openedToday(PosShift $shift, User $user): bool
+    {
+        if (! $shift->opened_at) {
+            return false;
+        }
+
+        $zone = $this->businessTimezone($user);
+
+        return $shift->opened_at->copy()->timezone($zone)->isSameDay(now($zone));
+    }
+
     public function requireForPos(User $user, ?int $branchId): ?PosShift
     {
         if ($this->isExempt($user)) {
@@ -41,6 +69,11 @@ class PosShiftService
 
         $shift = $this->findOpen($user);
         if (! $shift) {
+            $today = $this->findToday($user);
+            if ($today && ! $today->isOpen()) {
+                throw new InvalidArgumentException($this->closedTodayMessage($today));
+            }
+
             throw new InvalidArgumentException('Open a shift and confirm the cash and M-Pesa balances before selling.');
         }
 
@@ -67,6 +100,19 @@ class PosShiftService
 
                 if ($existing) {
                     throw new InvalidArgumentException('You already have an open shift. Close it before opening another.');
+                }
+
+                $today = PosShift::query()
+                    ->where('user_id', $user->id)
+                    ->whereBetween('opened_at', $this->businessDayBounds($user))
+                    ->lockForUpdate()
+                    ->orderByDesc('opened_at')
+                    ->first();
+
+                if ($today) {
+                    throw new InvalidArgumentException($today->isOpen()
+                        ? 'You already have an open shift. Close it before opening another.'
+                        : $this->closedTodayMessage($today));
                 }
 
                 return PosShift::query()->create([
@@ -402,6 +448,113 @@ class PosShiftService
         }
 
         return $totals;
+    }
+
+    public function requestReopen(PosShift $shift, User $user): PosShift
+    {
+        if ((int) $shift->user_id !== (int) $user->id) {
+            throw new InvalidArgumentException('Only the cashier for this shift can ask for it to be reopened.');
+        }
+
+        return DB::transaction(function () use ($shift, $user) {
+            $locked = PosShift::query()->whereKey($shift->id)->lockForUpdate()->first();
+            $this->assertReopenable($locked, $user);
+            if ($locked->reopen_requested_at) {
+                return $locked;
+            }
+
+            $locked->reopen_requested_at = now();
+            $locked->reopen_requested_by = $user->id;
+            $locked->save();
+
+            return $locked->fresh();
+        });
+    }
+
+    public function approveReopen(PosShift $shift, User $user): PosShift
+    {
+        if (! $user->hasPermission('pos.shifts.approve')) {
+            throw new InvalidArgumentException('You are not allowed to reopen a shift.');
+        }
+
+        return DB::transaction(function () use ($shift, $user) {
+            $locked = PosShift::query()->whereKey($shift->id)->lockForUpdate()->first();
+            $this->assertReopenable($locked, $user);
+
+            $alreadyOpen = PosShift::query()
+                ->where('user_id', $locked->user_id)
+                ->where('status', PosShift::STATUS_OPEN)
+                ->lockForUpdate()
+                ->exists();
+            if ($alreadyOpen) {
+                throw new InvalidArgumentException('This cashier already has an open shift.');
+            }
+
+            $cashVariance = $locked->cash_variance === null ? 'none' : number_format((float) $locked->cash_variance, 2, '.', '');
+            $mpesaVariance = $locked->mpesa_variance === null ? 'none' : number_format((float) $locked->mpesa_variance, 2, '.', '');
+            PosShiftAdjustment::query()->create([
+                'company_id' => $locked->company_id,
+                'pos_shift_id' => $locked->id,
+                'user_id' => $user->id,
+                'cash_amount' => 0,
+                'mpesa_amount' => 0,
+                'reason' => 'Reopened so the cashier can continue selling. Previous cash variance ' . $cashVariance . ', M-Pesa variance ' . $mpesaVariance . '.',
+            ]);
+
+            $locked->fill([
+                'status' => PosShift::STATUS_OPEN,
+                'is_open' => 1,
+                'closed_at' => null,
+                'closed_by' => null,
+                'actual_cash' => null,
+                'actual_mpesa' => null,
+                'closing_remarks' => null,
+                'cash_variance' => null,
+                'mpesa_variance' => null,
+                'reviewed_by' => null,
+                'reviewed_at' => null,
+                'review_remarks' => null,
+                'rejection_reason' => null,
+                'reopen_requested_at' => null,
+                'reopen_requested_by' => null,
+                'reopened_at' => now(),
+                'reopened_by' => $user->id,
+            ]);
+            $locked->save();
+
+            return $locked->fresh();
+        });
+    }
+
+    private function assertReopenable(?PosShift $shift, User $user): void
+    {
+        if (! $shift || $shift->isOpen()) {
+            throw new InvalidArgumentException('This shift is already open.');
+        }
+        if (! $this->openedToday($shift, $user)) {
+            throw new InvalidArgumentException('Only a shift opened today can be reopened. Open a new shift for a new day.');
+        }
+    }
+
+    private function closedTodayMessage(PosShift $shift): string
+    {
+        if ($shift->reopen_requested_at) {
+            return $shift->number . ' is closed for today. Waiting for an administrator to approve reopening it.';
+        }
+
+        return $shift->number . ' is already closed for today. An administrator has to approve reopening it before you can sell again.';
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function businessDayBounds(User $user): array
+    {
+        $zone = $this->businessTimezone($user);
+        $start = now($zone)->startOfDay()->timezone(config('app.timezone'));
+        $end = now($zone)->endOfDay()->timezone(config('app.timezone'));
+
+        return [$start->toDateTimeString(), $end->toDateTimeString()];
     }
 
     private function review(PosShift $shift, User $user, string $status, ?string $remarks, ?string $reason): PosShift

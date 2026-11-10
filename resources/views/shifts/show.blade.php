@@ -87,6 +87,42 @@
     </div>
 @endif
 
+@if($shift->isOpen() && $shift->reopened_at)
+    <div class="sx-acc-card">
+        <div class="sx-acc-card-head">Reopened</div>
+        <div class="sx-acc-card-body">
+            <p>Reopened by {{ $shift->reopenedBy->name ?? 'an administrator' }} on {{ optional($shift->reopened_at)->format('d/m/Y H:i') }} so selling can continue on this shift.</p>
+        </div>
+    </div>
+@endif
+
+@if($canRequestReopen)
+    <form method="post" action="{{ route('pos.shift.reopen.request', $shift) }}" class="sx-acc-card">
+        @csrf
+        <div class="sx-acc-card-head">Continue selling</div>
+        <div class="sx-acc-card-body">
+            <p>{{ $shift->number }} is closed for today. A second shift cannot be opened. Ask an administrator to reopen this one so you can continue selling. The opening balance stays the same.</p>
+            <button type="submit" class="btn btn-primary">Request reopen</button>
+        </div>
+    </form>
+@elseif($shift->reopen_requested_at && ! $canApproveReopen)
+    <div class="alert alert-info">Waiting for an administrator to approve reopening {{ $shift->number }}.</div>
+@endif
+
+@if($canApproveReopen)
+    <form method="post" action="{{ route('shifts.reopen', $shift) }}" class="sx-acc-card" id="sx-shift-reopen">
+        @csrf
+        <div class="sx-acc-card-head">Reopen shift</div>
+        <div class="sx-acc-card-body">
+            <p>Approve opening {{ $shift->number }} again so {{ $shift->cashier->name ?? 'the cashier' }} can continue selling today. The opening balance stays the same. This cash-up count is kept in the audit notes and is counted again at the next close.</p>
+            @if($shift->reopen_requested_at)
+                <p>The cashier has asked for this shift to be reopened.</p>
+            @endif
+            <button type="submit" class="btn btn-warning">Approve reopen</button>
+        </div>
+    </form>
+@endif
+
 @if($canReviewThis)
     <div class="row sx-shift-actions" id="sx-shift-review">
         <div class="col-md-6">

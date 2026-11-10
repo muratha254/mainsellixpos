@@ -24,6 +24,7 @@ class PosShift extends Model
         'cash_refunds', 'mpesa_refunds', 'cash_expenses', 'mpesa_expenses',
         'expected_cash', 'expected_mpesa', 'cash_variance', 'mpesa_variance',
         'reviewed_by', 'reviewed_at', 'review_remarks', 'rejection_reason',
+        'reopen_requested_at', 'reopen_requested_by', 'reopened_at', 'reopened_by',
     ];
 
     protected $casts = [
@@ -31,6 +32,8 @@ class PosShift extends Model
         'opened_at' => 'datetime',
         'closed_at' => 'datetime',
         'reviewed_at' => 'datetime',
+        'reopen_requested_at' => 'datetime',
+        'reopened_at' => 'datetime',
         'opening_cash' => 'decimal:2',
         'opening_mpesa' => 'decimal:2',
         'actual_cash' => 'decimal:2',
@@ -63,6 +66,11 @@ class PosShift extends Model
     public function reviewer()
     {
         return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    public function reopenedBy()
+    {
+        return $this->belongsTo(User::class, 'reopened_by');
     }
 
     public function branch()

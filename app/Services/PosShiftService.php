@@ -409,9 +409,6 @@ class PosShiftService
         if (! $user->hasPermission('pos.shifts.approve')) {
             throw new InvalidArgumentException('You are not allowed to review shift variances.');
         }
-        if ((int) $user->id === (int) $shift->user_id || (int) $user->id === (int) $shift->closed_by) {
-            throw new InvalidArgumentException('You cannot approve or reject your own shift.');
-        }
 
         return DB::transaction(function () use ($shift, $user, $status, $remarks, $reason) {
             $locked = PosShift::query()->whereKey($shift->id)->lockForUpdate()->first();

@@ -303,7 +303,7 @@ class PosShiftTest extends TestCase
         $this->assertSame(1, PosShift::query()->where('user_id', $this->cashier->id)->where('status', PosShift::STATUS_OPEN)->count());
     }
 
-    public function test_an_administrator_cannot_approve_their_own_variance(): void
+    public function test_an_administrator_can_approve_their_own_variance(): void
     {
         $this->actingAsAdmin()->postJson(route('pos.order'), $this->orderPayload(1, [
             ['method' => 'cash', 'amount' => 100],
@@ -319,17 +319,19 @@ class PosShiftTest extends TestCase
         $this->assertSame(PosShift::STATUS_PENDING, $shift->status);
         $this->assertEquals(-100.0, (float) $shift->cash_variance);
 
-        $this->actingAsAdmin()->post(route('shifts.approve', $shift))
-            ->assertSessionHas('error');
-        $this->assertSame(PosShift::STATUS_PENDING, $shift->fresh()->status);
+        $this->actingAsAdmin()->get(route('shifts.show', $shift))
+            ->assertOk()
+            ->assertSee('Approve variance')
+            ->assertDontSee('You cannot approve your own shift');
 
-        $reviewer = $this->makeUser('Reviewer Two', 'reviewer2@test.local', 'reviewer2', PermissionCatalog::COMPANY_ADMIN);
-        $this->actingAs($reviewer->fresh(['role.permissions']))
-            ->withSession(['current_branch_id' => $this->branch->id])
-            ->post(route('shifts.approve', $shift))
-            ->assertRedirect(route('shifts.show', $shift));
-        $this->assertSame(PosShift::STATUS_APPROVED, $shift->fresh()->status);
-        $this->assertEquals(-100.0, (float) $shift->fresh()->cash_variance);
+        $this->actingAsAdmin()->post(route('shifts.approve', $shift), [
+            'review_remarks' => 'Checked the drawer',
+        ])->assertRedirect(route('shifts.show', $shift));
+
+        $shift->refresh();
+        $this->assertSame(PosShift::STATUS_APPROVED, $shift->status);
+        $this->assertEquals(-100.0, (float) $shift->cash_variance);
+        $this->assertSame($this->admin->id, (int) $shift->reviewed_by);
     }
 
     public function test_shift_reports_keep_cashiers_and_branches_apart(): void

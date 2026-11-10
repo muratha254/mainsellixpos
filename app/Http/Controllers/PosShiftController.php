@@ -282,9 +282,7 @@ class PosShiftController extends Controller
     private function canReview(User $user, PosShift $shift): bool
     {
         return $user->hasPermission('pos.shifts.approve')
-            && $shift->status === PosShift::STATUS_PENDING
-            && (int) $user->id !== (int) $shift->user_id
-            && (int) $user->id !== (int) $shift->closed_by;
+            && $shift->status === PosShift::STATUS_PENDING;
     }
 
     private function cashierOptions(User $user)

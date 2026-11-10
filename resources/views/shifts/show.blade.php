@@ -119,8 +119,6 @@
             </form>
         </div>
     </div>
-@elseif($canApprove && $shift->status === \App\Models\PosShift::STATUS_PENDING)
-    <div class="alert alert-warning">Another administrator has to review this variance. You cannot approve your own shift.</div>
 @endif
 
 @if($canApprove && ! $shift->isOpen())

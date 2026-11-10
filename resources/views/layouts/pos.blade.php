@@ -50,7 +50,7 @@
         </div>
     </header>
     @if(session('success'))
-        <div class="alert alert-success" style="margin:8px 16px 0;">{{ session('success') }}</div>
+        <div class="alert alert-success sx-pos-flash" style="margin:8px 16px 0;">{{ session('success') }}</div>
     @endif
     @if(session('warning'))
         <div class="alert alert-warning" style="margin:8px 16px 0;">{{ session('warning') }}</div>
@@ -58,6 +58,15 @@
     @if(session('error'))
         <div class="alert alert-danger" style="margin:8px 16px 0;">{{ session('error') }}</div>
     @endif
+    <script>
+        document.querySelectorAll('.sx-pos-flash').forEach(function (el) {
+            setTimeout(function () {
+                el.style.transition = 'opacity 0.4s ease';
+                el.style.opacity = '0';
+                setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 400);
+            }, 2500);
+        });
+    </script>
     @yield('content')
     <footer class="pos-bottombar">
         <span>COPYRIGHT &copy; {{ date('Y') }} ALL RIGHTS RESERVED.</span>

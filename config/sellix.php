@@ -19,6 +19,7 @@ return [
         'goods_receipt' => 'GRN-',
         'payment' => 'PAY-',
         'expense' => 'EXP-',
+        'shift' => 'SHF-',
         'journal' => 'JE-',
         'credit_note' => 'CN-',
         'stock_transfer' => 'ST-',

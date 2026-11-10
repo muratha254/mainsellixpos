@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Customer;
 use App\Models\Permission;
+use App\Models\PosShift;
 use App\Models\Product;
 use App\Models\ProductBranchStock;
 use App\Models\Role;
@@ -157,6 +158,24 @@ trait CreatesSellixWorld
         $this->seedTestSubscription();
 
         app()->instance('currentBranchId', $this->branch->id);
+
+        $this->openWorkingShift($this->admin, 'SHF-ADMIN');
+        $this->openWorkingShift($this->cashier, 'SHF-CASHIER');
+    }
+
+    protected function openWorkingShift(User $user, string $number): PosShift
+    {
+        return PosShift::query()->create([
+            'company_id' => $this->company->id,
+            'branch_id' => $user->branch_id,
+            'user_id' => $user->id,
+            'number' => $number,
+            'status' => PosShift::STATUS_OPEN,
+            'is_open' => 1,
+            'opened_at' => now(),
+            'opening_cash' => 0,
+            'opening_mpesa' => 0,
+        ]);
     }
 
     protected function seedTestSubscription(): void

@@ -27,7 +27,7 @@ class Sale extends Model
     public const PAYMENT_PAID = 'paid';
 
     protected $fillable = [
-        'company_id', 'branch_id', 'customer_id', 'user_id', 'quotation_id',
+        'company_id', 'branch_id', 'customer_id', 'user_id', 'pos_shift_id', 'quotation_id',
         'document_type', 'number', 'invoice_number', 'receipt_number',
         'sale_date', 'due_date', 'status', 'payment_status',
         'subtotal', 'discount_percent', 'discount_amount', 'tax_amount',
@@ -73,6 +73,11 @@ class Sale extends Model
     public function items()
     {
         return $this->hasMany(SaleItem::class);
+    }
+
+    public function shift()
+    {
+        return $this->belongsTo(PosShift::class, 'pos_shift_id');
     }
 
     public function payments()

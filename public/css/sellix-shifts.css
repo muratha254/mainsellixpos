@@ -1,0 +1,16 @@
+.sx-shift-short { color: #c0392b; font-weight: 700; }
+.sx-shift-over { color: #1e7e34; font-weight: 700; }
+.sx-shift-even { color: #1a6b3c; font-weight: 700; }
+.sx-shift-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 700; }
+.sx-shift-open { background: #d9ecff; color: #0b5394; }
+.sx-shift-pending_approval { background: #fff3cd; color: #8a6d00; }
+.sx-shift-approved { background: #d8f3e4; color: #146c43; }
+.sx-shift-rejected { background: #f8d7da; color: #842029; }
+.sx-shift-closed { background: #eceff1; color: #455a64; }
+.sx-shift-total { font-size: 22px; font-weight: 700; margin: 8px 0 0; }
+.sx-shift-figure { background: #f7f4ea; border: 1px solid #e4d7a8; border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; }
+.sx-shift-figure span { display: block; color: #6b6253; font-size: 12px; }
+.sx-shift-figure strong { font-size: 18px; }
+@media (max-width: 767px) {
+    .sx-shift-actions .btn { display: block; width: 100%; margin-bottom: 8px; }
+}

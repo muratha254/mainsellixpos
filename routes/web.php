@@ -8,6 +8,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\DebitNoteController;
 use App\Http\Controllers\PosController;
+use App\Http\Controllers\PosShiftController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SaleReturnController;
 use App\Http\Controllers\OrderScreenController;
@@ -383,6 +384,22 @@ Route::middleware('auth')->group(function () {
     Route::get('/debit-notes/pdf', [DebitNoteController::class, 'pdf'])
         ->middleware('permission:purchases.view')
         ->name('debit-notes.pdf');
+    Route::middleware('permission:pos.shift')->group(function () {
+        Route::get('/pos/shift/open', [PosShiftController::class, 'openForm'])->name('pos.shift.open');
+        Route::post('/pos/shift/open', [PosShiftController::class, 'open'])->name('pos.shift.store');
+        Route::get('/pos/shift/close', [PosShiftController::class, 'closeForm'])->name('pos.shift.close');
+        Route::post('/pos/shift/close', [PosShiftController::class, 'close'])->name('pos.shift.close.store');
+    });
+    Route::middleware('permission:pos.shifts.view')->group(function () {
+        Route::get('/shifts', [PosShiftController::class, 'index'])->name('shifts.index');
+        Route::get('/shifts/{shift}', [PosShiftController::class, 'show'])->name('shifts.show');
+    });
+    Route::middleware('permission:pos.shifts.approve')->group(function () {
+        Route::post('/shifts/{shift}/approve', [PosShiftController::class, 'approve'])->name('shifts.approve');
+        Route::post('/shifts/{shift}/reject', [PosShiftController::class, 'reject'])->name('shifts.reject');
+        Route::post('/shifts/{shift}/adjustments', [PosShiftController::class, 'adjust'])->name('shifts.adjust');
+    });
+
     Route::middleware('permission:pos.view')->group(function () {
         Route::get('/pos', [PosController::class, 'index'])->name('pos.index');
         Route::get('/pos/catalog', [PosController::class, 'catalog'])->name('pos.catalog');

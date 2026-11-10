@@ -58,6 +58,12 @@ class PermissionCatalog
 
             'pos.credit_sale' => ['module' => 'pos', 'label' => 'Allow credit sales on POS'],
 
+            'pos.shift' => ['module' => 'pos', 'label' => 'Open and close own POS shift'],
+
+            'pos.shifts.view' => ['module' => 'pos', 'label' => 'View POS shift reports'],
+
+            'pos.shifts.approve' => ['module' => 'pos', 'label' => 'Approve or reject POS shift variances'],
+
 
 
             'products.view' => ['module' => 'products', 'label' => 'View products'],
@@ -332,7 +338,7 @@ class PermissionCatalog
 
                     'dashboard.view',
 
-                    'pos.view', 'pos.operate', 'pos.hold', 'pos.discount', 'pos.void', 'pos.credit_sale',
+                    'pos.view', 'pos.operate', 'pos.hold', 'pos.discount', 'pos.void', 'pos.credit_sale', 'pos.shift', 'pos.shifts.view',
 
                     'products.view', 'products.create', 'products.update', 'products.view_cost',
 
@@ -388,7 +394,7 @@ class PermissionCatalog
 
                     'dashboard.view',
 
-                    'pos.view', 'pos.operate', 'pos.hold',
+                    'pos.view', 'pos.operate', 'pos.hold', 'pos.shift', 'pos.shifts.view',
 
                     'products.view',
 
@@ -442,7 +448,7 @@ class PermissionCatalog
 
                     'dashboard.view',
 
-                    'pos.view', 'pos.operate', 'pos.hold',
+                    'pos.view', 'pos.operate', 'pos.hold', 'pos.shift', 'pos.shifts.view',
 
                     'products.view',
 

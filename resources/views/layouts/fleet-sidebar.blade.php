@@ -20,6 +20,7 @@
     $salesOpen = in_array($active, [
         'sales.pos', 'sales.index', 'sales.returns', 'sales.voids', 'sales.credit-notes', 'sales.orders',
         'quotations.index', 'invoices.index', 'invoices.create',
+        'shifts.index', 'shifts.show', 'shifts.open', 'shifts.close',
     ], true);
 
     $supplierOpen = in_array($active, [
@@ -107,6 +108,14 @@
                 ['key' => 'invoices.index', 'label' => 'Invoices', 'icon' => 'fa-file-text', 'url' => route('invoices.index'), 'show' => $can('invoices.view')],
                 ['key' => 'sales.orders', 'label' => 'Order Screen', 'icon' => 'fa-desktop', 'url' => route('sales.orders'), 'show' => $can('sales.create') || $can('pos.operate') || $can('pos.view')],
             ],
+        ],
+        [
+            'key' => 'shifts',
+            'label' => 'Shift Reports',
+            'icon' => 'fa-clock-o',
+            'url' => route('shifts.index'),
+            'show' => $can('pos.shifts.view'),
+            'open' => in_array($active, ['shifts.index', 'shifts.show', 'shifts.open', 'shifts.close'], true),
         ],
         [
             'key' => 'suppliers',

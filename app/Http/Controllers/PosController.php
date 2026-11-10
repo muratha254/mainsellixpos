@@ -19,6 +19,7 @@ use App\Services\SettingsService;
 use App\Services\AccountingPoster;
 use App\Services\LoyaltyService;
 use App\Services\AuditLogger;
+use App\Services\PosShiftService;
 use App\Services\UnitConversionService;
 use App\Support\DiscountCalculator;
 use Illuminate\Database\QueryException;
@@ -32,6 +33,13 @@ class PosController extends Controller
     public function index()
     {
         $this->authorizePermission('pos.view');
+
+        $openShift = null;
+        try {
+            $openShift = app(PosShiftService::class)->requireForPos(auth()->user(), $this->currentBranchId());
+        } catch (InvalidArgumentException $e) {
+            return redirect()->route('pos.shift.open')->with('warning', $e->getMessage());
+        }
 
         $walkIn = $this->walkInCustomer();
         $customers = Customer::query()
@@ -57,6 +65,7 @@ class PosController extends Controller
             'paymentMethods' => config('sellix.payment_methods', []),
             'loyalty' => app(LoyaltyService::class)->rules((int) auth()->user()->company_id),
             'draftBranchId' => $this->currentBranchId(),
+            'openShift' => $openShift,
         ]));
     }
 
@@ -436,6 +445,12 @@ class PosController extends Controller
             return $replay;
         }
 
+        try {
+            app(PosShiftService::class)->requireForPos(auth()->user(), $this->currentBranchId());
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
         $data = $this->validateCart($request);
         $data['offline_key'] = $this->offlineClientKey($request);
 
@@ -446,6 +461,8 @@ class PosController extends Controller
 
                 return $sale;
             });
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
         } catch (QueryException $e) {
             if ($replay = $this->replayOfflineKey($request)) {
                 return $replay;
@@ -469,6 +486,12 @@ class PosController extends Controller
 
         if ($replay = $this->replayOfflineKey($request)) {
             return $replay;
+        }
+
+        try {
+            app(PosShiftService::class)->requireForPos(auth()->user(), $this->currentBranchId());
+        } catch (InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
         }
 
         $data = $this->validateCart($request);
@@ -858,12 +881,14 @@ class PosController extends Controller
         $total = round(max(0, $subtotal - $discount), 2);
         $paid = min($total, $payAmount);
         $isInvoice = ($data['document_type'] ?? Sale::TYPE_POS) === Sale::TYPE_INVOICE;
+        $shift = app(PosShiftService::class)->lockOpenForSale(auth()->user(), (int) $branchId);
 
         $attrs = [
             'company_id' => $companyId,
             'branch_id' => $branchId,
             'customer_id' => $data['customer_id'],
             'user_id' => auth()->id(),
+            'pos_shift_id' => $shift ? $shift->id : null,
             'document_type' => $isInvoice ? Sale::TYPE_INVOICE : Sale::TYPE_POS,
             'sale_date' => $data['sale_date'],
             'due_date' => $data['due_date'] ?? null,

@@ -38,6 +38,9 @@
                 <span class="pos-hold-badge" id="sx-pos-hold-count">{{ (int) $heldCount }}</span>
             </button>
             <a href="{{ route('dashboard', [], false) }}" class="pos-top-link" id="sx-pos-dashboard" onclick="window.location.href=this.getAttribute('href'); return false;"><i class="fa fa-dashboard"></i> Dashboard</a>
+            @if(!empty($openShift))
+                <a href="{{ route('pos.shift.close') }}" class="pos-top-link"><i class="fa fa-clock-o"></i> Close shift</a>
+            @endif
             <button type="button" class="pos-top-link pos-pwa-install" data-pwa-install hidden><i class="fa fa-download"></i> Install App</button>
             <form action="{{ route('logout') }}" method="post" class="pos-logout-form">
                 @csrf
@@ -48,6 +51,12 @@
     </header>
     @if(session('success'))
         <div class="alert alert-success" style="margin:8px 16px 0;">{{ session('success') }}</div>
+    @endif
+    @if(session('warning'))
+        <div class="alert alert-warning" style="margin:8px 16px 0;">{{ session('warning') }}</div>
+    @endif
+    @if(session('error'))
+        <div class="alert alert-danger" style="margin:8px 16px 0;">{{ session('error') }}</div>
     @endif
     @yield('content')
     <footer class="pos-bottombar">

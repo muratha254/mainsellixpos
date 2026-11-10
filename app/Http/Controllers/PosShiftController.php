@@ -73,10 +73,13 @@ class PosShiftController extends Controller
             return redirect()->route('pos.shift.open')->with('warning', 'Open a shift before closing one.');
         }
 
+        $showFigures = auth()->user()->hasPermission('pos.shifts.approve');
+
         return view('shifts.close', array_merge(fleet_shared_view_data(), [
             'activeMenu' => 'shifts.close',
             'shift' => $shift->load(['cashier', 'branch']),
-            'figures' => $shifts->figures($shift),
+            'figures' => $showFigures ? $shifts->figures($shift) : null,
+            'showFigures' => $showFigures,
         ]));
     }
 

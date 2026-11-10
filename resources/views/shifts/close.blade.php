@@ -6,7 +6,7 @@
 <link rel="stylesheet" href="{{ asset('css/sellix-shifts.css') }}?v=1">
 @include('layouts.partials.page-header', [
     'title' => 'Close Shift',
-    'subtitle' => $shift->number . ' · ' . $shift->cashier->name,
+    'subtitle' => $showFigures ? $shift->number . ' · ' . $shift->cashier->name : 'Enter the counted cash and M-Pesa',
     'backUrl' => route('pos.index'),
     'breadcrumbs' => [
         ['label' => 'Home', 'url' => route('dashboard'), 'icon' => 'fa-home'],
@@ -15,6 +15,7 @@
     ],
 ])
 
+@if($showFigures)
 @php
     $rows = [
         ['Opening cash', $figures['opening_cash']],
@@ -30,8 +31,10 @@
         ['M-Pesa expenses', $figures['mpesa_expenses']],
     ];
 @endphp
+@endif
 
 <div class="row">
+    @if($showFigures)
     <div class="col-md-7">
         <div class="sx-acc-card">
             <div class="sx-acc-card-head">System figures</div>
@@ -61,7 +64,8 @@
             </div>
         </div>
     </div>
-    <div class="col-md-5">
+    @endif
+    <div class="{{ $showFigures ? 'col-md-5' : 'col-md-6 col-md-offset-3' }}">
         <form method="post" action="{{ route('pos.shift.close.store') }}" class="sx-acc-card">
             @csrf
             <div class="sx-acc-card-head">Counted balances</div>
@@ -80,22 +84,24 @@
                     <label>Actual M-Pesa balance (KSh)</label>
                     <input type="number" name="actual_mpesa" id="sx-actual-mpesa" class="form-control input-lg" min="0" step="0.01" required value="{{ old('actual_mpesa') }}">
                 </div>
-                <div class="sx-shift-figure">
-                    <span>Cash variance</span>
-                    <strong id="sx-var-cash">Enter the count</strong>
-                </div>
-                <div class="sx-shift-figure">
-                    <span>M-Pesa variance</span>
-                    <strong id="sx-var-mpesa">Enter the count</strong>
-                </div>
-                <div class="sx-shift-figure">
-                    <span>Total variance</span>
-                    <strong id="sx-var-total">Enter the count</strong>
-                </div>
-                <div class="form-group">
-                    <label>Closing remarks</label>
-                    <textarea name="closing_remarks" class="form-control" rows="2" maxlength="1000">{{ old('closing_remarks') }}</textarea>
-                </div>
+                @if($showFigures)
+                    <div class="sx-shift-figure">
+                        <span>Cash variance</span>
+                        <strong id="sx-var-cash">Enter the count</strong>
+                    </div>
+                    <div class="sx-shift-figure">
+                        <span>M-Pesa variance</span>
+                        <strong id="sx-var-mpesa">Enter the count</strong>
+                    </div>
+                    <div class="sx-shift-figure">
+                        <span>Total variance</span>
+                        <strong id="sx-var-total">Enter the count</strong>
+                    </div>
+                    <div class="form-group">
+                        <label>Closing remarks</label>
+                        <textarea name="closing_remarks" class="form-control" rows="2" maxlength="1000">{{ old('closing_remarks') }}</textarea>
+                    </div>
+                @endif
                 <button type="submit" class="btn btn-warning btn-lg">Submit cash-up</button>
             </div>
         </form>
@@ -103,6 +109,7 @@
 </div>
 @endsection
 
+@if($showFigures)
 @push('scripts')
 <script>
 (function () {
@@ -134,3 +141,4 @@
 })();
 </script>
 @endpush
+@endif

@@ -156,9 +156,17 @@ class PosShiftTest extends TestCase
 
         $this->actingAsCashier()->get(route('pos.shift.close'))
             ->assertOk()
+            ->assertSee('Actual physical cash counted')
+            ->assertSee('Actual M-Pesa balance')
+            ->assertDontSee('Expected closing cash')
+            ->assertDontSee('System figures')
+            ->assertDontSee('KSh 15,000.00')
+            ->assertDontSee('KSh 17,500.00');
+
+        $this->actingAsAdmin()->get(route('pos.shift.close'))
+            ->assertOk()
             ->assertSee('Expected closing cash')
-            ->assertSee('KSh 15,000.00')
-            ->assertSee('KSh 17,500.00');
+            ->assertSee('System figures');
 
         $this->actingAsCashier()->post(route('pos.shift.close.store'), [
             'actual_cash' => 14500,

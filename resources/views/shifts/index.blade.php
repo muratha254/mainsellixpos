@@ -116,13 +116,14 @@
                     <th>M-Pesa variance</th>
                     <th>Total variance</th>
                     <th>Approval</th>
+                    <th>Action</th>
                 </tr>
             </thead>
             <tbody>
                 @forelse($shifts as $shift)
                     @php $report = $shift->report; @endphp
                     <tr>
-                        <td><a href="{{ route('shifts.show', $shift) }}">{{ $shift->number }}</a></td>
+                        <td>{{ $shift->number }}</td>
                         <td>{{ $shift->cashier->name ?? '—' }}</td>
                         <td>{{ $shift->branch->name ?? '—' }}</td>
                         <td>{{ optional($shift->opened_at)->format('d/m/Y H:i') }}</td>
@@ -137,9 +138,16 @@
                         <td class="{{ $varianceClass($report['mpesa_variance']) }}">{{ $varianceText($report['mpesa_variance']) }}</td>
                         <td class="{{ $varianceClass($report['total_variance']) }}">{{ $varianceText($report['total_variance']) }}</td>
                         <td><span class="sx-shift-badge sx-shift-{{ $shift->status }}">{{ $shift->statusLabel() }}</span></td>
+                        <td style="white-space:nowrap;">
+                            @if($canApprove && $shift->status === \App\Models\PosShift::STATUS_PENDING)
+                                <a href="{{ route('shifts.show', $shift) }}#sx-shift-review" class="btn btn-xs btn-success">Approve</a>
+                            @else
+                                <a href="{{ route('shifts.show', $shift) }}" class="btn btn-xs btn-default">View</a>
+                            @endif
+                        </td>
                     </tr>
                 @empty
-                    <tr><td colspan="15">No shifts for this filter.</td></tr>
+                    <tr><td colspan="16">No shifts for this filter.</td></tr>
                 @endforelse
             </tbody>
         </table>

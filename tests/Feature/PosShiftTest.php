@@ -319,6 +319,10 @@ class PosShiftTest extends TestCase
         $this->assertSame(PosShift::STATUS_PENDING, $shift->status);
         $this->assertEquals(-100.0, (float) $shift->cash_variance);
 
+        $this->actingAsAdmin()->get(route('shifts.index'))
+            ->assertOk()
+            ->assertSee('Approve');
+
         $this->actingAsAdmin()->get(route('shifts.show', $shift))
             ->assertOk()
             ->assertSee('Approve variance')
@@ -354,6 +358,7 @@ class PosShiftTest extends TestCase
             ->assertOk()
             ->assertSee('SHF-CASHIER')
             ->assertSee('Shift Reports')
+            ->assertSee('View')
             ->assertDontSee('SHF-ADMIN')
             ->assertDontSee('SHF-OTHER');
 

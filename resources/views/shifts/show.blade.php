@@ -88,7 +88,7 @@
 @endif
 
 @if($canReviewThis)
-    <div class="row sx-shift-actions">
+    <div class="row sx-shift-actions" id="sx-shift-review">
         <div class="col-md-6">
             <form method="post" action="{{ route('shifts.approve', $shift) }}" class="sx-acc-card">
                 @csrf

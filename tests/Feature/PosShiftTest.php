@@ -63,6 +63,25 @@ class PosShiftTest extends TestCase
         $this->assertEquals(15000.0, (float) $shift->opening_cash + (float) $shift->opening_mpesa);
     }
 
+    public function test_a_shift_left_open_from_yesterday_does_not_open_the_till(): void
+    {
+        $shift = $this->cashierShift();
+        $shift->update(['opened_at' => now()->subDay()]);
+
+        $this->actingAsCashier()->get(route('pos.index'))
+            ->assertRedirect(route('pos.shift.open'));
+
+        $this->actingAsCashier()->get(route('pos.shift.open'))
+            ->assertOk()
+            ->assertSee('Close that shift')
+            ->assertSee($shift->number)
+            ->assertDontSee('Cash opening balance');
+
+        $this->actingAsCashier()->postJson(route('pos.order'), $this->orderPayload(1, [
+            ['method' => 'cash', 'amount' => 100],
+        ]))->assertStatus(422);
+    }
+
     public function test_cash_up_separates_methods_refunds_expenses_and_a_shortage(): void
     {
         ProductBranchStock::query()->where('product_id', $this->product->id)->update(['quantity' => 500]);

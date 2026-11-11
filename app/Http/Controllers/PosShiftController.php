@@ -20,7 +20,7 @@ class PosShiftController extends Controller
         abort_unless($branchId, 422, 'Select a branch first.');
 
         $existing = $shifts->findOpen($user);
-        if ($existing && (int) $existing->branch_id === (int) $branchId) {
+        if ($existing && $shifts->openedToday($existing, $user) && (int) $existing->branch_id === (int) $branchId) {
             return redirect()->route('pos.index');
         }
 

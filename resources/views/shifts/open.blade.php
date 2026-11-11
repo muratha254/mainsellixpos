@@ -27,7 +27,7 @@
             <div class="sx-acc-card">
                 <div class="sx-acc-card-head">Shift already open</div>
                 <div class="sx-acc-card-body">
-                    <p>{{ $existing->number }} is still open at {{ optional($existing->branch)->name ?: 'another branch' }}. Close it before opening a new one.</p>
+                    <p>{{ $existing->number }} is still open from {{ optional($existing->opened_at)->timezone(config('sellix.timezone', 'Africa/Nairobi'))->format('d/m/Y H:i') }} at {{ optional($existing->branch)->name ?: 'another branch' }}. Close it before opening today's shift.</p>
                     <a href="{{ route('pos.shift.close') }}" class="btn btn-warning">Close that shift</a>
                 </div>
             </div>

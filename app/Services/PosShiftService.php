@@ -68,6 +68,9 @@ class PosShiftService
         }
 
         $shift = $this->findOpen($user);
+        if ($shift && ! $this->openedToday($shift, $user)) {
+            throw new InvalidArgumentException($this->staleShiftMessage($shift, $user));
+        }
         if (! $shift) {
             $today = $this->findToday($user);
             if ($today && ! $today->isOpen()) {
@@ -149,7 +152,7 @@ class PosShiftService
             ->lockForUpdate()
             ->first();
 
-        if (! $shift || (int) $shift->branch_id !== (int) $branchId) {
+        if (! $shift || (int) $shift->branch_id !== (int) $branchId || ! $this->openedToday($shift, $user)) {
             throw new InvalidArgumentException('Open a shift and confirm the cash and M-Pesa balances before selling.');
         }
 
@@ -534,6 +537,14 @@ class PosShiftService
         if (! $this->openedToday($shift, $user)) {
             throw new InvalidArgumentException('Only a shift opened today can be reopened. Open a new shift for a new day.');
         }
+    }
+
+    private function staleShiftMessage(PosShift $shift, User $user): string
+    {
+        $zone = $this->businessTimezone($user);
+        $opened = $shift->opened_at->copy()->timezone($zone)->format('d/m/Y');
+
+        return $shift->number . ' is still open from ' . $opened . '. Close it before opening today\'s shift.';
     }
 
     private function closedTodayMessage(PosShift $shift): string

@@ -87,10 +87,8 @@
 
 <table class="accent" cellspacing="0" cellpadding="0">
     <tr>
-        <td style="width:18px; background:#d7f2fb;">
-            <div style="border-top:16px solid #e21878; border-right:14px solid #d7f2fb; width:0; height:0; line-height:0; font-size:0;"></div>
-        </td>
-        <td style="background:#d7f2fb;">&nbsp;</td>
+        <td class="accent-slash"><div class="accent-mark"></div></td>
+        <td class="accent-bar">&nbsp;</td>
     </tr>
 </table>
 

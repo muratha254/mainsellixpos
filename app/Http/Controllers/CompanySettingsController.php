@@ -332,6 +332,8 @@ class CompanySettingsController extends Controller
             'item_cost_control' => 'required|string|max:64',
             'shift_control' => 'required|string|max:120',
             'default_price' => 'required|string|max:64',
+            'document_header_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'document_accent_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
         ]);
 
         if ($request->boolean('remove_logo') && $company->logo_path) {
@@ -360,6 +362,7 @@ class CompanySettingsController extends Controller
             'show_disc_pos', 'menu_order', 'quotation_module', 'delivery_note', 'task_module',
             'enable_one_off_sale', 'capture_serial', 'duplicate_item_pos', 'item_cost_control',
             'shift_control', 'default_price',
+            'document_header_color', 'document_accent_color',
         ];
         $settings->setMany($company->id, array_intersect_key($data, array_flip($settingKeys)), 'company_profile');
 
@@ -451,6 +454,8 @@ class CompanySettingsController extends Controller
             'item_cost_control' => 'Get Average',
             'shift_control' => 'When Shift Invoices are fully settled',
             'default_price' => 'RETAIL PRICE',
+            'document_header_color' => '#2F9FD4',
+            'document_accent_color' => '#E21878',
             'receipt_control' => 'Print One Copy',
             'choose_print' => 'Invoice Only',
             'captain_category' => 'Captain Without Price',

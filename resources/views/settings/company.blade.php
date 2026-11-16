@@ -97,6 +97,16 @@
                             <textarea name="quotation_terms" class="form-control" rows="3" placeholder="Type here...">{{ old('quotation_terms', $company->quotation_terms) }}</textarea>
                         </div>
                         <div class="form-group">
+                            <label>Invoice and quotation header colour</label>
+                            <input type="color" name="document_header_color" value="{{ $v('document_header_color', '#2F9FD4') }}" style="height:36px;width:72px;padding:2px;">
+                            <small class="text-muted">Table heading, quote boxes, and the top bar.</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Invoice and quotation accent colour</label>
+                            <input type="color" name="document_accent_color" value="{{ $v('document_accent_color', '#E21878') }}" style="height:36px;width:72px;padding:2px;">
+                            <small class="text-muted">The mark at the left of the top bar.</small>
+                        </div>
+                        <div class="form-group">
                             <label>Country</label>
                             <input type="text" name="country" class="form-control" value="{{ old('country', $company->country ?: 'Kenya') }}">
                         </div>

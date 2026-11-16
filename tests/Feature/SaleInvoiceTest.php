@@ -2,9 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Mail\QuotationMail;
 use App\Models\JournalEntry;
 use App\Models\Quotation;
 use App\Models\Sale;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\URL;
 use Tests\Support\CreatesSellixWorld;
 use Tests\TestCase;
 
@@ -171,5 +174,61 @@ class SaleInvoiceTest extends TestCase
             ->assertSee('BILL TO:')
             ->assertSee('INVOICE NO:')
             ->assertSee('SIZE');
+    }
+
+    public function test_quotation_can_be_sent_by_email_and_whatsapp(): void
+    {
+        $this->customer->update([
+            'email' => 'lewis@example.com',
+            'phone' => '0712345678',
+            'mobile' => null,
+        ]);
+
+        $this->actingAsAdmin()->post(route('quotations.store'), [
+            'customer_id' => $this->customer->id,
+            'quote_date' => now()->toDateString(),
+            'valid_until' => now()->addDays(14)->toDateString(),
+            'items' => [[
+                'product_id' => $this->product->id,
+                'quantity' => 1,
+                'unit_price' => 80,
+                'tax_rate' => 0,
+            ]],
+        ])->assertRedirect();
+
+        $quotation = Quotation::query()->latest('id')->first();
+        $this->actingAsAdmin()->get(route('quotations.show', $quotation))
+            ->assertOk()
+            ->assertSee('WhatsApp')
+            ->assertSee('Email')
+            ->assertSee('wa.me/254712345678', false);
+
+        Mail::fake();
+        $this->actingAsAdmin()->post(route('quotations.email', $quotation))
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertSame(Quotation::STATUS_SENT, $quotation->fresh()->status);
+        Mail::assertSent(QuotationMail::class, function (QuotationMail $mail) {
+            $mail->build();
+
+            return $mail->hasTo('lewis@example.com')
+                && isset($mail->rawAttachments[0]['data'])
+                && strpos($mail->rawAttachments[0]['data'], '%PDF') === 0;
+        });
+
+        $this->customer->update(['email' => null, 'phone' => null, 'mobile' => null]);
+        $this->actingAsAdmin()->post(route('quotations.email', $quotation))
+            ->assertRedirect()
+            ->assertSessionHas('error');
+        $this->actingAsAdmin()->post(route('quotations.whatsapp', $quotation))
+            ->assertRedirect()
+            ->assertSessionHas('error');
+
+        $this->get(route('quotations.share', $quotation))->assertForbidden();
+        $share = $this->get(URL::temporarySignedRoute('quotations.share', now()->addDays(7), ['quotation' => $quotation->id]));
+        $share->assertOk();
+        $this->assertStringContainsString('application/pdf', (string) $share->headers->get('content-type'));
+        $this->assertStringStartsWith('%PDF', $share->getContent());
     }
 }

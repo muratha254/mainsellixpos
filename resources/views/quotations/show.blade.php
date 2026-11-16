@@ -44,6 +44,19 @@
     <div class="sx-invoice-actions sx-quote-actions">
         <a href="{{ route('quotations.pdf', $quotation) }}" class="btn btn-success btn-sm"><i class="fa fa-file-pdf-o"></i> Download PDF</a>
         <a href="{{ route('quotations.print', $quotation) }}" target="_blank" class="btn btn-default btn-sm"><i class="fa fa-print"></i> Print</a>
+        @php $whatsappUrl = \App\Support\WhatsAppLink::url($quotation); @endphp
+        @if($whatsappUrl)
+            <a href="{{ $whatsappUrl }}" target="_blank" rel="noopener" class="btn btn-success btn-sm"><i class="fa fa-whatsapp"></i> WhatsApp</a>
+        @else
+            <form action="{{ route('quotations.whatsapp', $quotation) }}" method="post">
+                @csrf
+                <button type="submit" class="btn btn-success btn-sm"><i class="fa fa-whatsapp"></i> WhatsApp</button>
+            </form>
+        @endif
+        <form action="{{ route('quotations.email', $quotation) }}" method="post">
+            @csrf
+            <button type="submit" class="btn btn-primary btn-sm"><i class="fa fa-envelope"></i> Email</button>
+        </form>
         @if($canUpdate)
             <a href="{{ route('quotations.edit', $quotation) }}" class="btn btn-primary btn-sm"><i class="fa fa-pencil"></i> Edit</a>
         @endif

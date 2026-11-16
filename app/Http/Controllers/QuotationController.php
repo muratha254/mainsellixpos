@@ -14,11 +14,15 @@ use App\Services\AccountingPoster;
 use App\Services\AuditLogger;
 use App\Services\DocumentNumberService;
 use App\Services\InventoryService;
+use App\Mail\QuotationMail;
 use App\Services\LoyaltyService;
+use App\Support\CompanyDocumentProfile;
 use App\Support\DiscountCalculator;
 use App\Support\DocumentFilename;
+use App\Support\WhatsAppLink;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use PDF;
 
@@ -40,7 +44,7 @@ class QuotationController extends Controller
         $this->authorizePermission('quotations.view');
 
         $quotations = Quotation::query()
-            ->with(['customer', 'user'])
+            ->with(['customer', 'user', 'company'])
             ->orderByDesc('quote_date')
             ->orderByDesc('id')
             ->get();
@@ -208,6 +212,58 @@ class QuotationController extends Controller
             ->with('success', 'Quotation marked as sent.');
     }
 
+    public function email(Quotation $quotation, AuditLogger $audit)
+    {
+        $this->authorizePermission('quotations.view');
+
+        $quotation->load(['customer', 'company', 'items.product', 'user', 'branch']);
+        $email = trim((string) optional($quotation->customer)->email);
+        if ($email === '' || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+            return back()->with('error', 'Add an email address on this customer before sending the quotation.');
+        }
+
+        try {
+            [$binary, $filename] = $this->quotationPdf($quotation);
+            Mail::to($email)->send(new QuotationMail($quotation, $binary, $filename));
+        } catch (\Throwable $e) {
+            report($e);
+
+            return back()->with('error', 'The quotation email could not be sent. Check the mail settings and try again.');
+        }
+
+        $this->markSentIfDraft($quotation, $audit);
+
+        return back()->with('success', 'Quotation emailed to '.$email.'.');
+    }
+
+    public function whatsapp(Quotation $quotation)
+    {
+        $this->authorizePermission('quotations.view');
+
+        $quotation->load(['customer', 'company']);
+        $url = WhatsAppLink::url($quotation);
+        if ($url === null) {
+            return back()->with('error', 'Add a phone number on this customer before opening WhatsApp.');
+        }
+
+        return redirect()->away($url);
+    }
+
+    public function share($quotation)
+    {
+        $record = Quotation::withoutGlobalScopes()->findOrFail($quotation);
+        abort_unless($record->company && $record->company->is_active, 404);
+        app()->instance('currentCompanyId', (int) $record->company_id);
+        $record->load(['customer', 'user', 'items.product', 'company', 'branch']);
+
+        [$binary, $filename] = $this->quotationPdf($record);
+
+        return response($binary, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$filename.'"',
+        ]);
+    }
+
     public function convert(
         Quotation $quotation,
         DocumentNumberService $numbers,
@@ -365,18 +421,48 @@ class QuotationController extends Controller
         $this->authorizePermission('quotations.view');
 
         $quotation->load(['customer', 'user', 'items.product', 'company', 'branch']);
-        $profile = fleet_company_profile();
+        [$binary, $filename] = $this->quotationPdf($quotation);
+
+        return response($binary, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+        ]);
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function quotationPdf(Quotation $quotation): array
+    {
+        $quotation->loadMissing(['customer', 'user', 'items.product', 'company', 'branch']);
+        $profile = $quotation->company
+            ? CompanyDocumentProfile::forCompany($quotation->company)
+            : fleet_company_profile();
         $customerName = (! $quotation->customer || $quotation->customer->is_walk_in)
             ? 'Walk-in'
             : $quotation->customer->name;
         $filename = DocumentFilename::make('quotation', $customerName, (string) $quotation->number);
-
-        return PDF::loadView('quotations.pdf', array_merge(fleet_shared_view_data(), [
+        $binary = PDF::loadView('quotations.pdf', [
             'quotation' => $quotation,
             'statuses' => $this->statusLabels(),
             'profile' => $profile,
             'logo_pdf_path' => $profile['logo_pdf_path'] ?? null,
-        ]))->setPaper('a4', 'portrait')->download($filename);
+            'documentCompanyId' => (int) $quotation->company_id,
+            'documentCompanyTerms' => (string) optional($quotation->company)->quotation_terms,
+        ])->setPaper('a4', 'portrait')->output();
+
+        return [$binary, $filename];
+    }
+
+    private function markSentIfDraft(Quotation $quotation, AuditLogger $audit): void
+    {
+        if ($quotation->status !== Quotation::STATUS_DRAFT) {
+            return;
+        }
+
+        $before = ['status' => $quotation->status];
+        $quotation->update(['status' => Quotation::STATUS_SENT]);
+        $audit->record('send', 'quotations', $quotation, $before, ['status' => Quotation::STATUS_SENT]);
     }
 
     private function canConvert(Quotation $quotation): bool

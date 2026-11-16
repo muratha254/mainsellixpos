@@ -96,6 +96,20 @@
                                         <li>
                                             <a href="{{ route('quotations.print', $row) }}" target="_blank"><i class="fa fa-print"></i> Print</a>
                                         </li>
+                                        @php $whatsappUrl = \App\Support\WhatsAppLink::url($row); @endphp
+                                        @if($whatsappUrl)
+                                            <li>
+                                                <a href="{{ $whatsappUrl }}" target="_blank" rel="noopener"><i class="fa fa-whatsapp"></i> WhatsApp</a>
+                                            </li>
+                                        @endif
+                                        <li>
+                                            <a href="#" onclick="event.preventDefault(); document.getElementById('qt-email-{{ $row->id }}').submit();">
+                                                <i class="fa fa-envelope"></i> Email
+                                            </a>
+                                            <form id="qt-email-{{ $row->id }}" action="{{ route('quotations.email', $row) }}" method="post" class="hidden">
+                                                @csrf
+                                            </form>
+                                        </li>
                                         @if($canConvert && in_array($row->status, ['draft', 'sent', 'accepted'], true) && ! $row->converted_sale_id)
                                             <li>
                                                 <a href="#" onclick="event.preventDefault(); if(confirm('Convert this quotation to an unpaid invoice?')) document.getElementById('qt-convert-{{ $row->id }}').submit();">

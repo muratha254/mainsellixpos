@@ -1,5 +1,6 @@
 @php
-    $documentColors = \App\Support\DocumentColors::forCompany((int) optional(auth()->user())->company_id);
+    $documentCompanyId = (int) ($documentCompanyId ?? optional(auth()->user())->company_id);
+    $documentColors = \App\Support\DocumentColors::forCompany($documentCompanyId);
 @endphp
 <style>
     @page { margin: 28px 32px; }

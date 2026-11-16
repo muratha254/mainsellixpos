@@ -84,11 +84,13 @@
         return number_format((float) $amount, 2);
     };
     $footerSettings = app(\App\Services\SettingsService::class);
-    $footerCompanyId = (int) optional(auth()->user())->company_id;
+    $footerCompanyId = (int) ($documentCompanyId ?? optional(auth()->user())->company_id);
     $footerLocation = trim((string) $footerSettings->get($footerCompanyId, 'document_footer_location', ''));
     $footerPayment = trim((string) $footerSettings->get($footerCompanyId, 'document_footer_payment', ''));
     $footerNote = trim((string) $footerSettings->get($footerCompanyId, 'document_footer_note', ''));
-    $companyTerms = trim((string) optional(optional(auth()->user())->company)->quotation_terms);
+    $companyTerms = isset($documentCompanyTerms)
+        ? trim((string) $documentCompanyTerms)
+        : trim((string) optional(optional(auth()->user())->company)->quotation_terms);
     $termsText = trim((string) ($terms ?? ''));
     if ($termsText === '') {
         $termsText = $companyTerms;

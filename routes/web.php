@@ -107,6 +107,10 @@ Route::middleware('guest')->group(function () {
     Route::get('/register/submitted', [RegisterBusinessController::class, 'submitted'])->name('register.submitted');
 });
 
+Route::get('/share/quotations/{quotation}', [QuotationController::class, 'share'])
+    ->middleware(['signed', 'throttle:60,1'])
+    ->name('quotations.share');
+
 Route::middleware('auth')->group(function () {
     Route::post('/demo/tour', [DemoTourController::class, 'act'])->name('demo.tour');
     Route::post('/demo/reset', [DemoAccessController::class, 'reset'])->name('demo.reset');
@@ -557,6 +561,12 @@ Route::middleware('auth')->group(function () {
     Route::post('/quotations/{quotation}/send', [QuotationController::class, 'send'])
         ->middleware('permission:quotations.update')
         ->name('quotations.send');
+    Route::post('/quotations/{quotation}/email', [QuotationController::class, 'email'])
+        ->middleware('permission:quotations.view')
+        ->name('quotations.email');
+    Route::post('/quotations/{quotation}/whatsapp', [QuotationController::class, 'whatsapp'])
+        ->middleware('permission:quotations.view')
+        ->name('quotations.whatsapp');
     Route::post('/quotations/{quotation}/convert', [QuotationController::class, 'convert'])
         ->middleware('permission:quotations.convert')
         ->name('quotations.convert');

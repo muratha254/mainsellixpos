@@ -213,6 +213,7 @@ class SaleInvoiceTest extends TestCase
             $mail->build();
 
             return $mail->hasTo('lewis@example.com')
+                && $mail->hasFrom('test@sellix.local')
                 && isset($mail->rawAttachments[0]['data'])
                 && strpos($mail->rawAttachments[0]['data'], '%PDF') === 0;
         });

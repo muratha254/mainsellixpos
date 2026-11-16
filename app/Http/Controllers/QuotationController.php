@@ -222,6 +222,11 @@ class QuotationController extends Controller
             return back()->with('error', 'Add an email address on this customer before sending the quotation.');
         }
 
+        $sender = trim((string) optional($quotation->company)->email);
+        if (filter_var($sender, FILTER_VALIDATE_EMAIL) === false) {
+            return back()->with('error', 'Add an email address on the company profile before sending quotations.');
+        }
+
         try {
             [$binary, $filename] = $this->quotationPdf($quotation);
             Mail::to($email)->send(new QuotationMail($quotation, $binary, $filename));

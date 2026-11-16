@@ -29,13 +29,14 @@ class QuotationMail extends Mailable
     {
         $company = $this->quotation->company;
         $companyName = trim((string) optional($company)->name);
+        $sender = trim((string) optional($company)->email);
         $mail = $this->subject('Quotation '.$this->quotation->number.($companyName !== '' ? ' from '.$companyName : ''))
             ->view('emails.quotation')
             ->attachData($this->pdfBinary, $this->filename, ['mime' => 'application/pdf']);
 
-        $replyTo = trim((string) optional($company)->email);
-        if ($replyTo !== '' && filter_var($replyTo, FILTER_VALIDATE_EMAIL)) {
-            $mail->replyTo($replyTo, $companyName !== '' ? $companyName : null);
+        if (filter_var($sender, FILTER_VALIDATE_EMAIL)) {
+            $mail->from($sender, $companyName !== '' ? $companyName : null);
+            $mail->replyTo($sender, $companyName !== '' ? $companyName : null);
         }
 
         return $mail;

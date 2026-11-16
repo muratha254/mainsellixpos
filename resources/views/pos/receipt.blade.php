@@ -290,18 +290,51 @@
 </div>
 @if(! optional($sale->company)->is_demo)
 <script>
-    window.addEventListener('load', function () {
-        var logo = document.querySelector('.logo');
-        var printSlip = function () {
-            setTimeout(function () { window.print(); }, 200);
+    (function () {
+        var started = false;
+        var closeSlip = function () {
+            if (!started) {
+                return;
+            }
+            window.close();
         };
-        if (!logo || logo.complete) {
-            printSlip();
-            return;
+        window.addEventListener('afterprint', closeSlip);
+        if (window.matchMedia) {
+            var media = window.matchMedia('print');
+            var onPrintChange = function (event) {
+                if (!event.matches) {
+                    closeSlip();
+                }
+            };
+            if (media.addEventListener) {
+                media.addEventListener('change', onPrintChange);
+            } else if (media.addListener) {
+                media.addListener(onPrintChange);
+            }
         }
-        logo.addEventListener('load', printSlip);
-        logo.addEventListener('error', printSlip);
-    });
+        var button = document.querySelector('.no-print button');
+        if (button) {
+            button.addEventListener('click', function () {
+                started = true;
+            });
+        }
+        window.addEventListener('load', function () {
+            var logo = document.querySelector('.logo');
+            var printSlip = function () {
+                if (started) {
+                    return;
+                }
+                started = true;
+                setTimeout(function () { window.print(); }, 200);
+            };
+            if (!logo || logo.complete) {
+                printSlip();
+                return;
+            }
+            logo.addEventListener('load', printSlip);
+            logo.addEventListener('error', printSlip);
+        });
+    })();
 </script>
 @endif
 @include('layouts.partials.demo-tour')

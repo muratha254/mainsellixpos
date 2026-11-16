@@ -68,6 +68,8 @@ class PosHoldQuoteAndSplitPaymentTest extends TestCase
 
         $this->actingAsAdmin()->get(route('pos.receipt', $sale))
             ->assertOk()
+            ->assertSee('afterprint', false)
+            ->assertSee('window.close()', false)
             ->assertSee('Cash', false)
             ->assertSee('Card', false)
             ->assertSee('Tendered', false)

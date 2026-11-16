@@ -91,6 +91,9 @@
                                             </li>
                                         @endif
                                         <li>
+                                            <a href="{{ route('quotations.pdf', $row) }}"><i class="fa fa-file-pdf-o"></i> Download PDF</a>
+                                        </li>
+                                        <li>
                                             <a href="{{ route('quotations.print', $row) }}" target="_blank"><i class="fa fa-print"></i> Print</a>
                                         </li>
                                         @if($canConvert && in_array($row->status, ['draft', 'sent', 'accepted'], true) && ! $row->converted_sale_id)

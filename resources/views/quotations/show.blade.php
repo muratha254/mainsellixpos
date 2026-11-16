@@ -41,6 +41,7 @@
         <div class="col-md-4">
             <div class="sx-invoice-label">Actions</div>
             <div class="sx-toolbar-actions" style="margin-top:6px;">
+                <a href="{{ route('quotations.pdf', $quotation) }}" class="btn btn-success btn-sm"><i class="fa fa-file-pdf-o"></i> Download PDF</a>
                 <a href="{{ route('quotations.print', $quotation) }}" target="_blank" class="btn btn-default btn-sm"><i class="fa fa-print"></i> Print</a>
                 @if($canUpdate)
                     <a href="{{ route('quotations.edit', $quotation) }}" class="btn btn-primary btn-sm"><i class="fa fa-pencil"></i> Edit</a>

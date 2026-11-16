@@ -23,6 +23,7 @@
 <body>
     <p class="no-print">
         <button onclick="window.print()">Print</button>
+        <a href="{{ route('quotations.pdf', $quotation) }}">Download PDF</a>
         <button onclick="window.close()">Close</button>
     </p>
 

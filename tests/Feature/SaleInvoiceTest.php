@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\JournalEntry;
+use App\Models\Quotation;
 use App\Models\Sale;
 use Tests\Support\CreatesSellixWorld;
 use Tests\TestCase;
@@ -103,5 +104,50 @@ class SaleInvoiceTest extends TestCase
     {
         $this->actingAsCashier()->get(route('invoices.index'))->assertForbidden();
         $this->actingAsCashier()->get(route('invoices.create'))->assertForbidden();
+    }
+
+    public function test_invoice_and_quotation_download_as_pdf(): void
+    {
+        $this->actingAsAdmin()->post(route('invoices.store'), [
+            'customer_id' => $this->customer->id,
+            'sale_date' => now()->toDateString(),
+            'items' => [[
+                'product_id' => $this->product->id,
+                'quantity' => 1,
+                'unit_price' => 50,
+                'tax_rate' => 0,
+            ]],
+        ])->assertRedirect();
+
+        $sale = Sale::query()->where('document_type', Sale::TYPE_INVOICE)->latest('id')->first();
+        $this->actingAsAdmin()->get(route('invoices.show', $sale))
+            ->assertOk()
+            ->assertSee('Download PDF');
+
+        $invoice = $this->actingAsAdmin()->get(route('invoices.pdf', $sale));
+        $invoice->assertOk();
+        $this->assertStringContainsString('application/pdf', (string) $invoice->headers->get('content-type'));
+        $this->assertStringStartsWith('%PDF', $invoice->getContent());
+
+        $this->actingAsAdmin()->post(route('quotations.store'), [
+            'customer_id' => $this->customer->id,
+            'quote_date' => now()->toDateString(),
+            'items' => [[
+                'product_id' => $this->product->id,
+                'quantity' => 1,
+                'unit_price' => 75,
+                'tax_rate' => 0,
+            ]],
+        ])->assertRedirect();
+
+        $quotation = Quotation::query()->latest('id')->first();
+        $this->actingAsAdmin()->get(route('quotations.show', $quotation))
+            ->assertOk()
+            ->assertSee('Download PDF');
+
+        $quote = $this->actingAsAdmin()->get(route('quotations.pdf', $quotation));
+        $quote->assertOk();
+        $this->assertStringContainsString('application/pdf', (string) $quote->headers->get('content-type'));
+        $this->assertStringStartsWith('%PDF', $quote->getContent());
     }
 }

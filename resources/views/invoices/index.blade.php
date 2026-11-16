@@ -89,6 +89,9 @@
                                         </li>
                                         @if($canPrint)
                                             <li>
+                                                <a href="{{ route('invoices.pdf', $row) }}"><i class="fa fa-file-pdf-o"></i> Download PDF</a>
+                                            </li>
+                                            <li>
                                                 <a href="{{ route('sales.print', $row) }}" target="_blank"><i class="fa fa-print"></i> Print</a>
                                             </li>
                                         @endif

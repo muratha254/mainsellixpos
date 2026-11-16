@@ -19,6 +19,7 @@ use App\Support\DiscountCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use PDF;
 
 class QuotationController extends Controller
 {
@@ -355,6 +356,22 @@ class QuotationController extends Controller
             'quotation' => $quotation,
             'statuses' => $this->statusLabels(),
         ]));
+    }
+
+    public function pdf(Quotation $quotation)
+    {
+        $this->authorizePermission('quotations.view');
+
+        $quotation->load(['customer', 'user', 'items.product', 'company', 'branch']);
+        $profile = fleet_company_profile();
+        $filename = 'quotation-' . preg_replace('/[^A-Za-z0-9\-]+/', '-', (string) $quotation->number) . '.pdf';
+
+        return PDF::loadView('quotations.pdf', array_merge(fleet_shared_view_data(), [
+            'quotation' => $quotation,
+            'statuses' => $this->statusLabels(),
+            'profile' => $profile,
+            'logo_pdf_path' => $profile['logo_pdf_path'] ?? null,
+        ]))->setPaper('a4', 'portrait')->download($filename);
     }
 
     private function canConvert(Quotation $quotation): bool

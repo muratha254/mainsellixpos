@@ -523,6 +523,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/invoices', [SaleInvoiceController::class, 'store'])
         ->middleware('permission:invoices.create')
         ->name('invoices.store');
+    Route::get('/invoices/{sale}/pdf', [SaleInvoiceController::class, 'pdf'])
+        ->middleware('permission:invoices.view')
+        ->name('invoices.pdf');
     Route::get('/invoices/{sale}', [SaleInvoiceController::class, 'show'])
         ->middleware('permission:invoices.view')
         ->name('invoices.show');
@@ -542,6 +545,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/quotations/{quotation}/print', [QuotationController::class, 'print'])
         ->middleware('permission:quotations.view')
         ->name('quotations.print');
+    Route::get('/quotations/{quotation}/pdf', [QuotationController::class, 'pdf'])
+        ->middleware('permission:quotations.view')
+        ->name('quotations.pdf');
     Route::put('/quotations/{quotation}', [QuotationController::class, 'update'])
         ->middleware('permission:quotations.update')
         ->name('quotations.update');

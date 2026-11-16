@@ -17,6 +17,7 @@ use App\Support\DiscountCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use PDF;
 
 class SaleInvoiceController extends Controller
 {
@@ -184,6 +185,24 @@ class SaleInvoiceController extends Controller
             'canPrint' => $user->hasPermission('sales.print_invoice') || $user->hasPermission('invoices.view'),
             'canPay' => $user->hasPermission('payments.create') && $sale->status === Sale::STATUS_COMPLETED && $sale->remainingBalance() > 0,
         ]));
+    }
+
+    public function pdf(Sale $sale)
+    {
+        $this->authorizePermission('invoices.view');
+        abort_unless($sale->document_type === Sale::TYPE_INVOICE, 404);
+        abort_if(in_array($sale->status, [Sale::STATUS_HELD, Sale::STATUS_DRAFT], true), 404);
+
+        $sale->load(['items', 'customer', 'cashier', 'branch', 'payments', 'company']);
+        $profile = fleet_company_profile();
+        $filename = 'invoice-' . preg_replace('/[^A-Za-z0-9\-]+/', '-', $sale->documentNumber()) . '.pdf';
+
+        return PDF::loadView('sales.pdf', array_merge(fleet_shared_view_data(), [
+            'sale' => $sale,
+            'profile' => $profile,
+            'logo_pdf_path' => $profile['logo_pdf_path'] ?? null,
+            'paymentLabels' => config('sellix.payment_methods', []),
+        ]))->setPaper('a4', 'portrait')->download($filename);
     }
 
     /**

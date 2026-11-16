@@ -1,18 +1,18 @@
 @php
-    $profile = $profile ?? [];
+    $profile = $profile ?? ($companyProfile ?? []);
     $logoSrc = function_exists('receipt_logo_src') ? receipt_logo_src($profile) : '';
     $companyName = trim((string) ($profile['companyName'] ?? ''));
     $pin = trim((string) ($profile['companyTaxPin'] ?? ''));
     $contact = [];
     foreach ([
-        $profile['companyAddress'] ?? '',
-        $profile['companyEmail'] ?? '',
-        $profile['companyWebsite'] ?? '',
-        $profile['companyPhone'] ?? '',
-    ] as $bit) {
+        'Address' => $profile['companyAddress'] ?? '',
+        'Email' => $profile['companyEmail'] ?? '',
+        'Web' => $profile['companyWebsite'] ?? '',
+        'Phone' => $profile['companyPhone'] ?? '',
+    ] as $label => $bit) {
         $bit = trim((string) $bit);
         if ($bit !== '' && $bit !== '-') {
-            $contact[] = $bit;
+            $contact[] = ['label' => $label, 'value' => $bit];
         }
     }
 
@@ -92,21 +92,27 @@
     </tr>
 </table>
 
-<div class="doc-title">{{ $title }}</div>
-
 <table class="brand">
     <tr>
-        <td width="58%">
+        <td class="brand-side" width="48%" valign="middle">
             @if($logoSrc !== '')
                 <img class="logo" src="{{ $logoSrc }}" alt="{{ $companyName }}">
             @elseif($companyName !== '')
                 <div class="company-name">{{ $companyName }}</div>
             @endif
         </td>
-        <td width="42%" class="contact">
-            @foreach($contact as $line)
-                <div><span class="dot">●</span> {{ $line }}</div>
-            @endforeach
+        <td class="brand-side" width="52%" align="right" valign="middle">
+            <table class="contact-card" align="right">
+                <tr>
+                    <td class="doc-title" colspan="2">{{ $title }}</td>
+                </tr>
+                @foreach($contact as $line)
+                    <tr>
+                        <td class="cl">{{ $line['label'] }}</td>
+                        <td class="cv">{{ $line['value'] }}</td>
+                    </tr>
+                @endforeach
+            </table>
         </td>
     </tr>
 </table>

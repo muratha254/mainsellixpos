@@ -154,7 +154,8 @@ class SaleInvoiceTest extends TestCase
             ->assertOk()
             ->assertSee('QUOTATION')
             ->assertSee('BILL TO:')
-            ->assertSee('QUOTE NO:');
+            ->assertSee('QUOTE NO:')
+            ->assertSee('Address');
 
         $this->actingAsAdmin()->get(route('invoices.print', $sale))
             ->assertOk()

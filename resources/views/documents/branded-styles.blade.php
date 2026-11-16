@@ -10,14 +10,15 @@
     .accent-slash { width: 18px; background: {{ $documentColors['tint'] }}; }
     .accent-mark { border-top: 16px solid {{ $documentColors['accent'] }}; border-right: 14px solid {{ $documentColors['tint'] }}; width: 0; height: 0; line-height: 0; font-size: 0; }
     .accent-bar { background: {{ $documentColors['tint'] }}; }
-    .doc-title { text-align: right; font-size: 26px; font-weight: 700; letter-spacing: 0.5px; margin: 6px 0 18px; }
-    .brand { width: 100%; margin-bottom: 22px; }
-    .brand td { vertical-align: top; }
-    .logo { max-height: 72px; max-width: 230px; }
+    .contact-card .doc-title { text-align: right; font-size: 22px; font-weight: 700; letter-spacing: 1.2px; padding: 0 0 8px; color: #111; }
+    .brand { width: 100%; margin: 8px 0 18px; border-bottom: 1px solid #e4e4e4; }
+    .brand-side { vertical-align: middle; padding-bottom: 14px; }
+    .logo { max-height: 68px; max-width: 220px; }
     .company-name { font-size: 18px; font-weight: 700; color: {{ $documentColors['header'] }}; margin: 0; }
-    .contact { text-align: right; font-size: 11px; line-height: 1.55; color: #333; }
-    .contact div { margin: 0; }
-    .dot { color: {{ $documentColors['header'] }}; font-size: 9px; }
+    .contact-card { width: 280px; border-collapse: collapse; }
+    .contact-card td { padding: 1px 0; border-bottom: 0; vertical-align: top; }
+    .contact-card .cl { width: 62px; text-align: right; color: {{ $documentColors['header'] }}; font-size: 9px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; padding: 2px 10px 2px 0; }
+    .contact-card .cv { text-align: left; font-size: 11px; color: #222; padding: 2px 0; }
     .parties { width: 100%; margin-top: 8px; }
     .parties td { vertical-align: top; }
     .bill-label { font-weight: 700; font-size: 12px; margin-bottom: 8px; }

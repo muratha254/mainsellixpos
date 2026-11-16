@@ -355,6 +355,7 @@ class QuotationController extends Controller
         return view('quotations.print', array_merge(fleet_shared_view_data(), [
             'quotation' => $quotation,
             'statuses' => $this->statusLabels(),
+            'profile' => fleet_company_profile(),
         ]));
     }
 

@@ -17,7 +17,9 @@ const POS_JSON = /\/pos\/(?:catalog|search|holds|offline-snapshot)(?:\/|$)/;
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS)).catch(function () {})
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS.map(scopeUrl))).catch(function () {}).then(function () {
+      return self.skipWaiting();
+    })
   );
 });
 
@@ -51,7 +53,12 @@ self.addEventListener('fetch', (event) => {
 
   if (request.method !== 'GET') {
     if (isNavigation(request)) {
-      event.respondWith(fetch(request).catch(() => offlinePage()));
+      event.respondWith(fetch(request).catch(function () {
+        if (self.navigator.onLine) {
+          return fetch(request);
+        }
+        return offlinePage();
+      }));
     }
     return;
   }
@@ -110,17 +117,36 @@ function isAllowedCdn(url) {
     || url.hostname === 'fonts.gstatic.com';
 }
 
+function scopeUrl(path) {
+  return new URL(String(path).replace(/^\.\//, ''), self.registration.scope).toString();
+}
+
+function fetchPage(request) {
+  return fetch(request).catch(function () {
+    return fetch(request.url, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      redirect: 'follow',
+    });
+  });
+}
+
 function offlinePage() {
-  return caches.match('./offline.html', { ignoreSearch: true }).then(function (cached) {
-    return cached || new Response('You are offline. Open a screen you used while online, or reconnect.', {
-      status: 503,
-      headers: { 'Content-Type': 'text/plain; charset=UTF-8' },
+  return caches.match(scopeUrl('offline.html'), { ignoreSearch: true }).then(function (cached) {
+    if (cached) {
+      return cached;
+    }
+    return caches.match('./offline.html', { ignoreSearch: true }).then(function (fallback) {
+      return fallback || new Response('You are offline. Open a screen you used while online, or reconnect.', {
+        status: 503,
+        headers: { 'Content-Type': 'text/plain; charset=UTF-8' },
+      });
     });
   });
 }
 
 function networkFirstPage(request) {
-  return fetch(request).then(function (response) {
+  return fetchPage(request).then(function (response) {
     if (shouldStorePage(request, response)) {
       const copy = response.clone();
       caches.open(PAGE_CACHE).then(function (cache) {
@@ -130,7 +156,17 @@ function networkFirstPage(request) {
     return response;
   }).catch(function () {
     return caches.match(request).then(function (cached) {
-      return cached || offlinePage();
+      if (cached) {
+        return cached;
+      }
+      if (self.navigator.onLine) {
+        return fetch(request.url, {
+          credentials: 'same-origin',
+          cache: 'reload',
+          redirect: 'follow',
+        });
+      }
+      return offlinePage();
     });
   });
 }

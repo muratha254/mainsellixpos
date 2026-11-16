@@ -128,6 +128,10 @@ class SaleInvoiceTest extends TestCase
         $invoice->assertOk();
         $this->assertStringContainsString('application/pdf', (string) $invoice->headers->get('content-type'));
         $this->assertStringStartsWith('%PDF', $invoice->getContent());
+        $this->assertStringContainsString(
+            'inv-walk-in-'.preg_replace('/\D+/', '', (string) $sale->documentNumber()),
+            (string) $invoice->headers->get('content-disposition')
+        );
 
         $this->actingAsAdmin()->post(route('quotations.store'), [
             'customer_id' => $this->customer->id,
@@ -149,6 +153,10 @@ class SaleInvoiceTest extends TestCase
         $quote->assertOk();
         $this->assertStringContainsString('application/pdf', (string) $quote->headers->get('content-type'));
         $this->assertStringStartsWith('%PDF', $quote->getContent());
+        $this->assertStringContainsString(
+            'quo-walk-in-'.preg_replace('/\D+/', '', (string) $quotation->number),
+            (string) $quote->headers->get('content-disposition')
+        );
 
         $this->actingAsAdmin()->get(route('quotations.print', $quotation))
             ->assertOk()

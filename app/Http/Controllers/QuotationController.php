@@ -16,6 +16,7 @@ use App\Services\DocumentNumberService;
 use App\Services\InventoryService;
 use App\Services\LoyaltyService;
 use App\Support\DiscountCalculator;
+use App\Support\DocumentFilename;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -365,7 +366,10 @@ class QuotationController extends Controller
 
         $quotation->load(['customer', 'user', 'items.product', 'company', 'branch']);
         $profile = fleet_company_profile();
-        $filename = 'quotation-' . preg_replace('/[^A-Za-z0-9\-]+/', '-', (string) $quotation->number) . '.pdf';
+        $customerName = (! $quotation->customer || $quotation->customer->is_walk_in)
+            ? 'Walk-in'
+            : $quotation->customer->name;
+        $filename = DocumentFilename::make('quotation', $customerName, (string) $quotation->number);
 
         return PDF::loadView('quotations.pdf', array_merge(fleet_shared_view_data(), [
             'quotation' => $quotation,

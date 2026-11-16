@@ -14,6 +14,7 @@ use App\Services\DocumentNumberService;
 use App\Services\InventoryService;
 use App\Services\LoyaltyService;
 use App\Support\DiscountCalculator;
+use App\Support\DocumentFilename;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -195,7 +196,7 @@ class SaleInvoiceController extends Controller
 
         $sale->load(['items', 'customer', 'cashier', 'branch', 'payments', 'company']);
         $profile = fleet_company_profile();
-        $filename = 'invoice-' . preg_replace('/[^A-Za-z0-9\-]+/', '-', $sale->documentNumber()) . '.pdf';
+        $filename = DocumentFilename::make('invoice', $sale->customerDisplayName(), $sale->documentNumber());
 
         return PDF::loadView('invoices.pdf', array_merge(fleet_shared_view_data(), [
             'sale' => $sale,

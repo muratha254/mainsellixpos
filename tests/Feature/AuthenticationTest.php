@@ -32,6 +32,25 @@ class AuthenticationTest extends TestCase
         $response->assertRedirect(RouteServiceProvider::HOME);
     }
 
+    public function test_a_second_person_can_sign_in_while_someone_else_is_already_signed_in(): void
+    {
+        $first = User::factory()->create();
+        $second = User::factory()->create();
+
+        $this->actingAs($first);
+
+        $this->get('/login')->assertOk()->assertSee($first->name);
+
+        $response = $this->post('/login', [
+            'email' => $second->email,
+            'password' => 'password',
+        ]);
+        $response->assertSessionHasNoErrors();
+        $response->assertRedirect(RouteServiceProvider::HOME);
+
+        $this->assertAuthenticatedAs($second);
+    }
+
     public function test_users_can_not_authenticate_with_invalid_password()
     {
         $user = User::factory()->create();

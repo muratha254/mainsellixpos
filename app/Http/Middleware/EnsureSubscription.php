@@ -54,6 +54,10 @@ class EnsureSubscription
 
     protected function shouldBypass(Request $request): bool
     {
+        if ($request->is('login') || $request->is('logout')) {
+            return true;
+        }
+
         return $request->routeIs(
             'login',
             'register',

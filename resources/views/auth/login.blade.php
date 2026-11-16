@@ -32,6 +32,12 @@
             <div class="login-alert login-alert-danger">{{ $errors->first() }}</div>
             @endif
 
+            @if(auth()->check())
+            <div class="login-alert login-alert-warning">
+                This screen is signed in as {{ auth()->user()->name }}. Sign in below to use another account here. Anyone signed in on their own device stays signed in.
+            </div>
+            @endif
+
             <form action="{{ route('login') }}" method="post" novalidate>
                 @csrf
 

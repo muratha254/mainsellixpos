@@ -36,7 +36,9 @@
     .r { text-align: right; }
     .desc { text-align: left; }
     .totals-wrap { width: 100%; margin-top: 14px; }
-    .totals { width: 280px; margin-left: auto; }
+    .totals-side { width: 62%; vertical-align: top; padding-right: 16px; }
+    .totals-box { width: 38%; vertical-align: top; text-align: right; }
+    .totals { width: 250px; margin-left: auto; }
     .totals td { border: 1px solid #c8c8c8; padding: 7px 8px; font-size: 12px; font-weight: 700; }
     .totals .amt { text-align: right; font-weight: 400; width: 120px; }
     .totals .grand td { font-size: 13px; }
@@ -48,12 +50,12 @@
     .foot-split { border-left: 1px solid {{ $documentColors['header'] }}; }
     .foot-note { text-align: center; font-size: 11px; color: #333; padding: 8px 12px 2px; }
     .foot-close { height: 6px; background: {{ $documentColors['header'] }}; margin-top: 8px; }
-    .terms { width: 100%; margin-top: 22px; border-collapse: collapse; }
+    .terms { width: 100%; margin-top: 0; border-collapse: collapse; }
     .terms .terms-head { background: {{ $documentColors['header'] }}; color: #fff; font-size: 12px; font-weight: 700; letter-spacing: 0.6px; padding: 7px 10px; }
     .terms td { font-size: 11px; color: #222; padding: 5px 0 2px; vertical-align: top; }
     .terms .terms-num { width: 28px; padding-left: 4px; font-weight: 700; }
     .terms-sign { margin-top: 14px; font-size: 12px; font-weight: 700; }
-    .terms-line { width: 280px; border-bottom: 1px solid #222; height: 28px; margin-top: 6px; }
+    .terms-line { width: 220px; border-bottom: 1px solid #222; height: 22px; margin-top: 4px; }
     .no-print { margin: 0 0 14px; }
     .no-print button, .no-print a { font-family: Arial, Helvetica, sans-serif; font-size: 13px; margin-right: 8px; }
     @media print { .no-print { display: none; } }

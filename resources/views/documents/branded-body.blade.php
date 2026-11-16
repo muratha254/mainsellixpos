@@ -201,7 +201,29 @@
 
 <table class="totals-wrap">
     <tr>
-        <td align="right">
+        <td class="totals-side" width="62%" valign="top">
+            @if(count($termLines))
+                <table class="terms" cellspacing="0" cellpadding="0">
+                    <tr>
+                        <td class="terms-head" colspan="2">TERMS AND CONDITIONS</td>
+                    </tr>
+                    @foreach($termLines as $line)
+                        <tr>
+                            <td class="terms-num">{{ $loop->iteration }}.</td>
+                            <td>{{ $line }}</td>
+                        </tr>
+                    @endforeach
+                </table>
+                <div class="terms-sign">Customer Acceptance (sign below):</div>
+                <div class="terms-line"></div>
+            @endif
+            @if($notes)
+                <div class="notes">
+                    <div><strong>Notes:</strong> {{ $notes }}</div>
+                </div>
+            @endif
+        </td>
+        <td class="totals-box" width="38%" align="right" valign="top">
             <table class="totals">
                 <tr>
                     <td>SUBTOTAL:</td>
@@ -225,28 +247,6 @@
         </td>
     </tr>
 </table>
-
-@if($notes)
-    <div class="notes">
-        <div><strong>Notes:</strong> {{ $notes }}</div>
-    </div>
-@endif
-
-@if(count($termLines))
-    <table class="terms" cellspacing="0" cellpadding="0">
-        <tr>
-            <td class="terms-head" colspan="2">TERMS AND CONDITIONS</td>
-        </tr>
-        @foreach($termLines as $line)
-            <tr>
-                <td class="terms-num">{{ $loop->iteration }}.</td>
-                <td>{{ $line }}</td>
-            </tr>
-        @endforeach
-    </table>
-    <div class="terms-sign">Customer Acceptance (sign below):</div>
-    <div class="terms-line"></div>
-@endif
 
 @if($footerLocation !== '' || $footerPayment !== '' || $footerNote !== '')
     <table class="doc-footer" cellspacing="0" cellpadding="0">

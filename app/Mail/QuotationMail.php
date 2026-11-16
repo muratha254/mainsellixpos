@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\Quotation;
+use App\Support\MailSender;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
@@ -29,14 +30,16 @@ class QuotationMail extends Mailable
     {
         $company = $this->quotation->company;
         $companyName = trim((string) optional($company)->name);
-        $sender = trim((string) optional($company)->email);
+        $sender = MailSender::forCompany($company);
         $mail = $this->subject('Quotation '.$this->quotation->number.($companyName !== '' ? ' from '.$companyName : ''))
             ->view('emails.quotation')
             ->attachData($this->pdfBinary, $this->filename, ['mime' => 'application/pdf']);
 
-        if (filter_var($sender, FILTER_VALIDATE_EMAIL)) {
-            $mail->from($sender, $companyName !== '' ? $companyName : null);
-            $mail->replyTo($sender, $companyName !== '' ? $companyName : null);
+        if (filter_var($sender['address'], FILTER_VALIDATE_EMAIL)) {
+            $mail->from($sender['address'], $sender['name']);
+        }
+        if ($sender['replyTo']) {
+            $mail->replyTo($sender['replyTo'], $sender['name']);
         }
 
         return $mail;

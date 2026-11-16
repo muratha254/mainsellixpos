@@ -203,6 +203,7 @@ class SaleInvoiceTest extends TestCase
             ->assertSee('Email')
             ->assertSee('wa.me/254712345678', false);
 
+        config(['app.url' => 'https://shop.sellix.local']);
         Mail::fake();
         $this->actingAsAdmin()->post(route('quotations.email', $quotation))
             ->assertRedirect()
@@ -216,6 +217,18 @@ class SaleInvoiceTest extends TestCase
                 && $mail->hasFrom('test@sellix.local')
                 && isset($mail->rawAttachments[0]['data'])
                 && strpos($mail->rawAttachments[0]['data'], '%PDF') === 0;
+        });
+
+        config(['app.url' => 'https://mainsellixpos.lewsoftech.com']);
+        $this->company->update(['email' => 'shop@gmail.com']);
+        $this->actingAsAdmin()->post(route('quotations.email', $quotation))
+            ->assertRedirect()
+            ->assertSessionHas('success');
+        Mail::assertSent(QuotationMail::class, function (QuotationMail $mail) {
+            $mail->build();
+
+            return $mail->hasFrom('noreply@lewsoftech.com')
+                && $mail->hasReplyTo('shop@gmail.com');
         });
 
         $this->customer->update(['email' => null, 'phone' => null, 'mobile' => null]);

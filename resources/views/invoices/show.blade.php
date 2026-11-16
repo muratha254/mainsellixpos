@@ -52,7 +52,7 @@
             <div class="sx-toolbar-actions" style="margin-top:6px;">
                 @if($canPrint)
                     <a href="{{ route('invoices.pdf', $sale) }}" class="btn btn-success btn-sm"><i class="fa fa-file-pdf-o"></i> Download PDF</a>
-                    <a href="{{ route('sales.print', $sale) }}" target="_blank" class="btn btn-default btn-sm"><i class="fa fa-print"></i> Print</a>
+                    <a href="{{ route('invoices.print', $sale) }}" target="_blank" class="btn btn-default btn-sm"><i class="fa fa-print"></i> Print</a>
                 @endif
                 <a href="{{ route('sales.show', $sale) }}" class="btn btn-primary btn-sm"><i class="fa fa-list"></i> Sale Details</a>
                 @if($canPay)

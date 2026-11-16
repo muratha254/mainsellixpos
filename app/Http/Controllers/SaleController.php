@@ -581,11 +581,19 @@ class SaleController extends Controller
         }
 
         $sale->load(['items', 'customer', 'cashier', 'branch', 'payments', 'company']);
+        $profile = fleet_company_profile();
+
+        if ($sale->document_type === Sale::TYPE_INVOICE) {
+            return view('invoices.print', array_merge(fleet_shared_view_data(), [
+                'sale' => $sale,
+                'profile' => $profile,
+            ]));
+        }
 
         return view('sales.print', array_merge(fleet_shared_view_data(), [
             'sale' => $sale,
             'mode' => $mode,
-            'profile' => fleet_company_profile(),
+            'profile' => $profile,
             'paymentLabels' => config('sellix.payment_methods', []),
         ]));
     }
@@ -639,7 +647,7 @@ class SaleController extends Controller
         $profile = fleet_company_profile();
         $filename = 'sale-' . preg_replace('/[^A-Za-z0-9\-]+/', '-', $sale->documentNumber()) . '.pdf';
 
-        $pdf = PDF::loadView('sales.pdf', array_merge(fleet_shared_view_data(), [
+        $pdf = PDF::loadView($sale->document_type === Sale::TYPE_INVOICE ? 'invoices.pdf' : 'sales.pdf', array_merge(fleet_shared_view_data(), [
             'sale' => $sale,
             'profile' => $profile,
             'logo_pdf_path' => $profile['logo_pdf_path'] ?? null,

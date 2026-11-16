@@ -526,6 +526,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/invoices/{sale}/pdf', [SaleInvoiceController::class, 'pdf'])
         ->middleware('permission:invoices.view')
         ->name('invoices.pdf');
+    Route::get('/invoices/{sale}/print', [SaleInvoiceController::class, 'print'])
+        ->middleware('permission:invoices.view')
+        ->name('invoices.print');
     Route::get('/invoices/{sale}', [SaleInvoiceController::class, 'show'])
         ->middleware('permission:invoices.view')
         ->name('invoices.show');

@@ -149,5 +149,18 @@ class SaleInvoiceTest extends TestCase
         $quote->assertOk();
         $this->assertStringContainsString('application/pdf', (string) $quote->headers->get('content-type'));
         $this->assertStringStartsWith('%PDF', $quote->getContent());
+
+        $this->actingAsAdmin()->get(route('quotations.print', $quotation))
+            ->assertOk()
+            ->assertSee('QUOTATION')
+            ->assertSee('BILL TO:')
+            ->assertSee('QUOTE NO:');
+
+        $this->actingAsAdmin()->get(route('invoices.print', $sale))
+            ->assertOk()
+            ->assertSee('INVOICE')
+            ->assertSee('BILL TO:')
+            ->assertSee('INVOICE NO:')
+            ->assertSee('SIZE');
     }
 }

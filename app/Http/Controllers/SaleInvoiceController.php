@@ -197,12 +197,25 @@ class SaleInvoiceController extends Controller
         $profile = fleet_company_profile();
         $filename = 'invoice-' . preg_replace('/[^A-Za-z0-9\-]+/', '-', $sale->documentNumber()) . '.pdf';
 
-        return PDF::loadView('sales.pdf', array_merge(fleet_shared_view_data(), [
+        return PDF::loadView('invoices.pdf', array_merge(fleet_shared_view_data(), [
             'sale' => $sale,
             'profile' => $profile,
             'logo_pdf_path' => $profile['logo_pdf_path'] ?? null,
-            'paymentLabels' => config('sellix.payment_methods', []),
         ]))->setPaper('a4', 'portrait')->download($filename);
+    }
+
+    public function print(Sale $sale)
+    {
+        $this->authorizePermission('invoices.view');
+        abort_unless($sale->document_type === Sale::TYPE_INVOICE, 404);
+        abort_if(in_array($sale->status, [Sale::STATUS_HELD, Sale::STATUS_DRAFT], true), 404);
+
+        $sale->load(['items', 'customer', 'company']);
+
+        return view('invoices.print', array_merge(fleet_shared_view_data(), [
+            'sale' => $sale,
+            'profile' => fleet_company_profile(),
+        ]));
     }
 
     /**

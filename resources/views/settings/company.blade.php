@@ -93,8 +93,9 @@
                             <textarea name="bank_details" class="form-control" rows="3">{{ old('bank_details', $company->bank_details) }}</textarea>
                         </div>
                         <div class="form-group">
-                            <label>Quotation Terms</label>
-                            <textarea name="quotation_terms" class="form-control" rows="3" placeholder="Type here...">{{ old('quotation_terms', $company->quotation_terms) }}</textarea>
+                            <label>Terms and conditions</label>
+                            <textarea name="quotation_terms" class="form-control" rows="5" placeholder="One condition per line. Example:&#10;Customer will be billed after indicating acceptance of this quote&#10;Payment will be due prior to delivery of service and goods">{{ old('quotation_terms', $company->quotation_terms) }}</textarea>
+                            <small class="text-muted">Printed on invoices and quotations, with a customer signature line.</small>
                         </div>
                         <div class="form-group">
                             <label>Invoice and quotation header colour</label>

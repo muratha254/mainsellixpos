@@ -88,6 +88,18 @@
     $footerLocation = trim((string) $footerSettings->get($footerCompanyId, 'document_footer_location', ''));
     $footerPayment = trim((string) $footerSettings->get($footerCompanyId, 'document_footer_payment', ''));
     $footerNote = trim((string) $footerSettings->get($footerCompanyId, 'document_footer_note', ''));
+    $companyTerms = trim((string) optional(optional(auth()->user())->company)->quotation_terms);
+    $termsText = trim((string) ($terms ?? ''));
+    if ($termsText === '') {
+        $termsText = $companyTerms;
+    }
+    $termLines = [];
+    foreach (preg_split('/\r\n|\r|\n/', $termsText) ?: [] as $line) {
+        $line = trim((string) preg_replace('/^\d+[\.\)\-]\s*/', '', trim($line)));
+        if ($line !== '') {
+            $termLines[] = $line;
+        }
+    }
 @endphp
 
 <table class="accent" cellspacing="0" cellpadding="0">
@@ -214,15 +226,26 @@
     </tr>
 </table>
 
-@if($notes || $terms)
+@if($notes)
     <div class="notes">
-        @if($notes)
-            <div><strong>Notes:</strong> {{ $notes }}</div>
-        @endif
-        @if($terms)
-            <div><strong>Terms:</strong> {{ $terms }}</div>
-        @endif
+        <div><strong>Notes:</strong> {{ $notes }}</div>
     </div>
+@endif
+
+@if(count($termLines))
+    <table class="terms" cellspacing="0" cellpadding="0">
+        <tr>
+            <td class="terms-head" colspan="2">TERMS AND CONDITIONS</td>
+        </tr>
+        @foreach($termLines as $line)
+            <tr>
+                <td class="terms-num">{{ $loop->iteration }}.</td>
+                <td>{{ $line }}</td>
+            </tr>
+        @endforeach
+    </table>
+    <div class="terms-sign">Customer Acceptance (sign below):</div>
+    <div class="terms-line"></div>
 @endif
 
 @if($footerLocation !== '' || $footerPayment !== '' || $footerNote !== '')

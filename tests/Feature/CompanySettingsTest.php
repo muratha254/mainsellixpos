@@ -46,7 +46,8 @@ class CompanySettingsTest extends TestCase
             ->assertSee('Invoice and quotation header colour')
             ->assertSee('Invoice and quotation accent colour')
             ->assertSee('Footer location')
-            ->assertSee('Footer payment information');
+            ->assertSee('Footer payment information')
+            ->assertSee('Terms and conditions');
 
         $this->actingAsAdmin()
             ->put(route('settings.company.update'), $this->profilePayload([
@@ -55,6 +56,7 @@ class CompanySettingsTest extends TestCase
                 'document_footer_location' => 'Mfangano Trade Center',
                 'document_footer_payment' => 'Paybill 542542 Account 202331',
                 'document_footer_note' => 'Thank you for your business.',
+                'quotation_terms' => "Customer will be billed after indicating acceptance of this quote\nPayment will be due prior to delivery of service and goods",
             ]))
             ->assertRedirect(route('settings.company', ['tab' => 'basic']));
 
@@ -80,7 +82,10 @@ class CompanySettingsTest extends TestCase
             ->assertSee('#ABCDEF')
             ->assertSee('Mfangano Trade Center')
             ->assertSee('Paybill 542542 Account 202331')
-            ->assertSee('Thank you for your business.');
+            ->assertSee('Thank you for your business.')
+            ->assertSee('TERMS AND CONDITIONS')
+            ->assertSee('Customer will be billed after indicating acceptance of this quote')
+            ->assertSee('Customer Acceptance (sign below):');
     }
 
     private function profilePayload(array $extra = []): array

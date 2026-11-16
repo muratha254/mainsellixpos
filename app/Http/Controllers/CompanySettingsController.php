@@ -334,6 +334,9 @@ class CompanySettingsController extends Controller
             'default_price' => 'required|string|max:64',
             'document_header_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'document_accent_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'document_footer_location' => 'nullable|string|max:2000',
+            'document_footer_payment' => 'nullable|string|max:2000',
+            'document_footer_note' => 'nullable|string|max:2000',
         ]);
 
         if ($request->boolean('remove_logo') && $company->logo_path) {
@@ -363,6 +366,7 @@ class CompanySettingsController extends Controller
             'enable_one_off_sale', 'capture_serial', 'duplicate_item_pos', 'item_cost_control',
             'shift_control', 'default_price',
             'document_header_color', 'document_accent_color',
+            'document_footer_location', 'document_footer_payment', 'document_footer_note',
         ];
         $settings->setMany($company->id, array_intersect_key($data, array_flip($settingKeys)), 'company_profile');
 
@@ -456,6 +460,9 @@ class CompanySettingsController extends Controller
             'default_price' => 'RETAIL PRICE',
             'document_header_color' => '#2F9FD4',
             'document_accent_color' => '#E21878',
+            'document_footer_location' => '',
+            'document_footer_payment' => '',
+            'document_footer_note' => '',
             'receipt_control' => 'Print One Copy',
             'choose_print' => 'Invoice Only',
             'captain_category' => 'Captain Without Price',

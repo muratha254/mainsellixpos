@@ -107,6 +107,19 @@
                             <small class="text-muted">The mark at the left of the top bar.</small>
                         </div>
                         <div class="form-group">
+                            <label>Footer location</label>
+                            <textarea name="document_footer_location" class="form-control" rows="3" placeholder="Shop, street, and town">{{ $v('document_footer_location') }}</textarea>
+                            <small class="text-muted">Printed at the bottom of invoices and quotations.</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Footer payment information</label>
+                            <textarea name="document_footer_payment" class="form-control" rows="4" placeholder="Bank, paybill, till, or account number">{{ $v('document_footer_payment') }}</textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Footer note</label>
+                            <textarea name="document_footer_note" class="form-control" rows="2" placeholder="Thank you for your business.">{{ $v('document_footer_note') }}</textarea>
+                        </div>
+                        <div class="form-group">
                             <label>Country</label>
                             <input type="text" name="country" class="form-control" value="{{ old('country', $company->country ?: 'Kenya') }}">
                         </div>

@@ -44,12 +44,17 @@ class CompanySettingsTest extends TestCase
         $this->actingAsAdmin()->get(route('settings.company'))
             ->assertOk()
             ->assertSee('Invoice and quotation header colour')
-            ->assertSee('Invoice and quotation accent colour');
+            ->assertSee('Invoice and quotation accent colour')
+            ->assertSee('Footer location')
+            ->assertSee('Footer payment information');
 
         $this->actingAsAdmin()
             ->put(route('settings.company.update'), $this->profilePayload([
                 'document_header_color' => '#112233',
                 'document_accent_color' => '#ABCDEF',
+                'document_footer_location' => 'Mfangano Trade Center',
+                'document_footer_payment' => 'Paybill 542542 Account 202331',
+                'document_footer_note' => 'Thank you for your business.',
             ]))
             ->assertRedirect(route('settings.company', ['tab' => 'basic']));
 
@@ -72,7 +77,10 @@ class CompanySettingsTest extends TestCase
         $this->actingAsAdmin()->get(route('quotations.print', $quotation))
             ->assertOk()
             ->assertSee('#112233')
-            ->assertSee('#ABCDEF');
+            ->assertSee('#ABCDEF')
+            ->assertSee('Mfangano Trade Center')
+            ->assertSee('Paybill 542542 Account 202331')
+            ->assertSee('Thank you for your business.');
     }
 
     private function profilePayload(array $extra = []): array

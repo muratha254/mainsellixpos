@@ -41,6 +41,13 @@
     .totals .amt { text-align: right; font-weight: 400; width: 120px; }
     .totals .grand td { font-size: 13px; }
     .notes { margin-top: 18px; font-size: 11px; color: #333; }
+    .doc-footer { width: 100%; margin-top: 28px; border-top: 3px solid {{ $documentColors['header'] }}; background: {{ $documentColors['tint'] }}; }
+    .doc-footer td { vertical-align: top; padding: 12px 14px; }
+    .foot-label { color: {{ $documentColors['header'] }}; font-size: 10px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; margin-bottom: 4px; }
+    .foot-text { font-size: 11px; line-height: 1.45; color: #222; }
+    .foot-split { border-left: 1px solid {{ $documentColors['header'] }}; }
+    .foot-note { text-align: center; font-size: 11px; color: #333; padding: 8px 12px 2px; }
+    .foot-close { height: 6px; background: {{ $documentColors['header'] }}; margin-top: 8px; }
     .no-print { margin: 0 0 14px; }
     .no-print button, .no-print a { font-family: Arial, Helvetica, sans-serif; font-size: 13px; margin-right: 8px; }
     @media print { .no-print { display: none; } }

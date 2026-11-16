@@ -83,6 +83,11 @@
     $money = function ($amount) {
         return number_format((float) $amount, 2);
     };
+    $footerSettings = app(\App\Services\SettingsService::class);
+    $footerCompanyId = (int) optional(auth()->user())->company_id;
+    $footerLocation = trim((string) $footerSettings->get($footerCompanyId, 'document_footer_location', ''));
+    $footerPayment = trim((string) $footerSettings->get($footerCompanyId, 'document_footer_payment', ''));
+    $footerNote = trim((string) $footerSettings->get($footerCompanyId, 'document_footer_note', ''));
 @endphp
 
 <table class="accent" cellspacing="0" cellpadding="0">
@@ -218,4 +223,31 @@
             <div><strong>Terms:</strong> {{ $terms }}</div>
         @endif
     </div>
+@endif
+
+@if($footerLocation !== '' || $footerPayment !== '' || $footerNote !== '')
+    <table class="doc-footer" cellspacing="0" cellpadding="0">
+        @if($footerLocation !== '' || $footerPayment !== '')
+            <tr>
+                @if($footerLocation !== '')
+                    <td width="{{ $footerPayment !== '' ? '50%' : '100%' }}">
+                        <div class="foot-label">Location</div>
+                        <div class="foot-text">{!! nl2br(e($footerLocation)) !!}</div>
+                    </td>
+                @endif
+                @if($footerPayment !== '')
+                    <td class="{{ $footerLocation !== '' ? 'foot-split' : '' }}" width="{{ $footerLocation !== '' ? '50%' : '100%' }}">
+                        <div class="foot-label">Payment</div>
+                        <div class="foot-text">{!! nl2br(e($footerPayment)) !!}</div>
+                    </td>
+                @endif
+            </tr>
+        @endif
+        @if($footerNote !== '')
+            <tr>
+                <td class="foot-note" colspan="2">{!! nl2br(e($footerNote)) !!}</td>
+            </tr>
+        @endif
+    </table>
+    <div class="foot-close"></div>
 @endif

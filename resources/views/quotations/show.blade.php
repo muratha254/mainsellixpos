@@ -25,57 +25,56 @@
     </div>
 
     <div class="row sx-invoice-parties">
-        <div class="col-md-4">
+        <div class="col-md-6">
             <div class="sx-invoice-label">Customer</div>
             <div class="sx-invoice-name">{{ optional($quotation->customer)->name ?: '-' }}</div>
             <div>Phone: {{ optional($quotation->customer)->phone ?: '-' }}</div>
             <div>Email: {{ optional($quotation->customer)->email ?: '-' }}</div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-6">
             <div class="sx-invoice-label">Quote Details</div>
             <div>Number: <strong>{{ $quotation->number }}</strong></div>
             <div>Status: {{ $statusLabel }}</div>
             <div>Valid Until: {{ optional($quotation->valid_until)->format('d-m-Y') ?: '-' }}</div>
             <div>Created by: {{ optional($quotation->user)->name ?: '-' }}</div>
         </div>
-        <div class="col-md-4">
-            <div class="sx-invoice-label">Actions</div>
-            <div class="sx-toolbar-actions" style="margin-top:6px;">
-                <a href="{{ route('quotations.pdf', $quotation) }}" class="btn btn-success btn-sm"><i class="fa fa-file-pdf-o"></i> Download PDF</a>
-                <a href="{{ route('quotations.print', $quotation) }}" target="_blank" class="btn btn-default btn-sm"><i class="fa fa-print"></i> Print</a>
-                @if($canUpdate)
-                    <a href="{{ route('quotations.edit', $quotation) }}" class="btn btn-primary btn-sm"><i class="fa fa-pencil"></i> Edit</a>
-                @endif
-                @if($canSend)
-                    <form action="{{ route('quotations.send', $quotation) }}" method="post" style="display:inline;">
-                        @csrf
-                        <button type="submit" class="btn btn-info btn-sm"><i class="fa fa-paper-plane"></i> Mark Sent</button>
-                    </form>
-                @endif
-                @if($canConvert)
-                    <form action="{{ route('quotations.convert', $quotation) }}" method="post" style="display:inline;" onsubmit="return confirm('Convert this quotation to an unpaid invoice?');">
-                        @csrf
-                        <button type="submit" class="btn sx-btn-aqua btn-sm"><i class="fa fa-exchange"></i> Convert to Sale</button>
-                    </form>
-                @endif
-                @if($canDelete)
-                    <form action="{{ route('quotations.destroy', $quotation) }}" method="post" style="display:inline;" onsubmit="return confirm('Delete this draft quotation?');">
-                        @csrf
-                        @method('DELETE')
-                        <button type="submit" class="btn btn-danger btn-sm"><i class="fa fa-trash"></i> Delete</button>
-                    </form>
-                @endif
-            </div>
-            @if($quotation->convertedSale)
-                <div style="margin-top:10px;">
-                    Converted sale:
-                    <a href="{{ route('sales.show', $quotation->convertedSale) }}">
-                        {{ $quotation->convertedSale->invoice_number ?: $quotation->convertedSale->number }}
-                    </a>
-                </div>
-            @endif
-        </div>
     </div>
+
+    <div class="sx-invoice-label">Actions</div>
+    <div class="sx-invoice-actions sx-quote-actions">
+        <a href="{{ route('quotations.pdf', $quotation) }}" class="btn btn-success btn-sm"><i class="fa fa-file-pdf-o"></i> Download PDF</a>
+        <a href="{{ route('quotations.print', $quotation) }}" target="_blank" class="btn btn-default btn-sm"><i class="fa fa-print"></i> Print</a>
+        @if($canUpdate)
+            <a href="{{ route('quotations.edit', $quotation) }}" class="btn btn-primary btn-sm"><i class="fa fa-pencil"></i> Edit</a>
+        @endif
+        @if($canSend)
+            <form action="{{ route('quotations.send', $quotation) }}" method="post">
+                @csrf
+                <button type="submit" class="btn btn-info btn-sm"><i class="fa fa-paper-plane"></i> Mark Sent</button>
+            </form>
+        @endif
+        @if($canConvert)
+            <form action="{{ route('quotations.convert', $quotation) }}" method="post" onsubmit="return confirm('Convert this quotation to an unpaid invoice?');">
+                @csrf
+                <button type="submit" class="btn sx-btn-aqua btn-sm"><i class="fa fa-exchange"></i> Convert to Sale</button>
+            </form>
+        @endif
+        @if($canDelete)
+            <form action="{{ route('quotations.destroy', $quotation) }}" method="post" onsubmit="return confirm('Delete this draft quotation?');">
+                @csrf
+                @method('DELETE')
+                <button type="submit" class="btn btn-danger btn-sm"><i class="fa fa-trash"></i> Delete</button>
+            </form>
+        @endif
+    </div>
+    @if($quotation->convertedSale)
+        <div style="margin:-8px 0 16px;">
+            Converted sale:
+            <a href="{{ route('sales.show', $quotation->convertedSale) }}">
+                {{ $quotation->convertedSale->invoice_number ?: $quotation->convertedSale->number }}
+            </a>
+        </div>
+    @endif
 
     <div class="table-responsive">
         <table class="table table-bordered sx-invoice-items">

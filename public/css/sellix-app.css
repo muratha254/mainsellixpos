@@ -2311,8 +2311,19 @@ body > .dropdown-menu.sx-dropdown-fixed {
 .sx-invoice-actions {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 8px;
+    max-width: 100%;
     margin-top: 18px;
+}
+
+.sx-invoice-actions form {
+    display: inline-flex;
+    margin: 0;
+}
+
+.sx-quote-actions {
+    margin: 0 0 18px;
 }
 
 .sx-invoice-actions .btn {
